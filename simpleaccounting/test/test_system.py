@@ -4,7 +4,7 @@ import datetime
 import pathlib
 
 from pony.orm import DatabaseSessionIsOver
-from simplefinance.app.system import System, IllegalOperation, VoucherEntry
+from simpleaccounting.app.system import System, IllegalOperation, VoucherEntry
 
 
 class TestSystem:

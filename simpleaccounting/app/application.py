@@ -3,8 +3,7 @@ import pathlib
 from qtpy import QtWidgets, QtGui
 import datetime
 
-from simplefinance.app.system import System
-
+from simpleaccounting.app.system import System
 
 class Application(QtWidgets.QApplication):
 

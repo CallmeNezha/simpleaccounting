@@ -4,10 +4,10 @@ import datetime
 from typing import Optional
 from pydantic import BaseModel, PositiveFloat, ValidationError
 
-from simplefinance.tools.mymath import FloatWithPrecision
-from simplefinance.ffdb import FFDB
-from simplefinance.defaults import DEFAULT_ACCOUNTS_2023
-from simplefinance.tools.dateutil import last_day_of_previous_month, first_day_of_month, last_day_of_month
+from simpleaccounting.tools.mymath import FloatWithPrecision
+from simpleaccounting.ffdb import FFDB
+from simpleaccounting.defaults import DEFAULT_ACCOUNTS_2023
+from simpleaccounting.tools.dateutil import last_day_of_previous_month, first_day_of_month, last_day_of_month
 
 
 class IllegalOperation(Exception):
