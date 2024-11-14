@@ -7,4 +7,5 @@ if __name__ == "__main__":
     # Initialize the application
     os.environ['QT_SCALE_FACTOR'] = ''
     app = Application([])
+    app.setQuitOnLastWindowClosed(True)
     app.exec_()

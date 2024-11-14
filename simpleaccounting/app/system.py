@@ -54,6 +54,7 @@ class Account:
         self.major_category = account.major_category
         self.sub_category = account.sub_category
         self.direction = account.direction
+        self.custom = account.custom
 
     @property
     def parent(self):
@@ -63,6 +64,11 @@ class Account:
                 return None
             else:
                 return Account(parent)
+
+    @property
+    def children(self):
+        with FFDB.db_session:
+            return [Account(a) for a in FFDB.db.Account.get(code=self.code).children]
 
     @property
     def currency(self):
@@ -95,6 +101,18 @@ class System:
     def __is_account_code_parent(code_parent: str, code: str):
         code_code_parent = '.'.join(code.split('.')[:-1])
         return code_parent == code_code_parent
+
+    @staticmethod
+    def __is_valid_account_code(code: str) -> bool:
+        if not code.strip():
+            return False
+        if code.startswith('.') or code.endswith('.'):
+            return False
+        try:
+            map(int, code.strip().split('.'))
+            return True
+        except Exception as e:
+            return False
 
     @staticmethod
     def new(filename: pathlib.Path, date: datetime.date):
@@ -157,6 +175,11 @@ class System:
                       name: str,
                       ) -> Account:
         """"""
+        if not System.__is_valid_account_code(code):
+            raise IllegalOperation("A1.2.1.2/1")
+        elif not System.__is_valid_account_code(parent_code):
+            raise IllegalOperation("A1.2.1.2/1")
+
         if not System.__is_account_code_parent(parent_code, code):
             raise IllegalOperation("A1.2.1.2/1")
 

@@ -5,6 +5,7 @@ from simpleaccounting.widgets.login import LoginDialog
 from simpleaccounting.widgets.bulletinboard import BulletinBoardDialog
 from simpleaccounting import resource # noqa
 
+
 class Application(QtWidgets.QApplication):
 
     def __init__(self, *args, **kwargs):

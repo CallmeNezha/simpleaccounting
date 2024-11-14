@@ -109,6 +109,7 @@ class LoginDialog(CustomQDialog):
     def on_buttonRegisterClicked(self):
         dialog = RegisterDialog(pathlib.Path(SIMPLEACCOUNTING_DIR))
         dialog.exec_()
+        self.updateUI()
 
     def on_buttonLoginClicked(self):
         self.sigLoginRequest.emit(pathlib.Path(SIMPLEACCOUNTING_DIR) / f"{self.combobox.currentText()}.db")
