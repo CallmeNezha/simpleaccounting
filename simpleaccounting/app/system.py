@@ -14,6 +14,10 @@ class IllegalOperation(Exception):
     pass
 
 
+class EntryNotFound(IllegalOperation):
+    pass
+
+
 class Meta:
     """"""
     def __init__(self, meta):
@@ -186,6 +190,8 @@ class System:
     def deleteAccount(code: str):
         with FFDB.db_session:
             account = FFDB.db.Account.get(code=code)
+            if account is None:
+                raise EntryNotFound(code)
             if account.currency:
                 raise IllegalOperation("A1.2.1/5")
             elif not account.custom:
@@ -216,18 +222,29 @@ class System:
     def setAccountCurrency(account_code: str, currency_name: str):
         with FFDB.db_session:
             account = FFDB.db.Account.get(code=account_code)
+            if account is None:
+                raise EntryNotFound(account_code)
             if account.currency:
                 raise IllegalOperation('A2.1/1')
             elif account.children:
                 raise IllegalOperation('A2.1/4')
 
             currency = FFDB.db.Currency.get(name=currency_name)
+            if currency is None:
+                raise EntryNotFound(currency_name)
             account.currency = currency
 
     @staticmethod
     def createCurrency(name: str) -> Currency:
         with FFDB.db_session:
+            if FFDB.db.Currency.get(name=name):
+                raise IllegalOperation('A2.2/2')
             return Currency(FFDB.db.Currency(name=name))
+
+    @staticmethod
+    def currencies() -> list[Currency]:
+        with FFDB.db_session:
+            return list((Currency(c) for c in FFDB.db.Currency.select()))
 
     @staticmethod
     def currency(name: str) -> Optional[Currency]:
@@ -239,8 +256,14 @@ class System:
 
     @staticmethod
     def deleteCurrency(name: str):
+        if name == '人民币':
+            raise IllegalOperation('A2.2/1')
+
         with FFDB.db_session:
             currency = FFDB.db.Currency.get(name=name)
+            if currency is None:
+                raise EntryNotFound(name)
+
             if currency.accounts:
                 raise IllegalOperation('A2.1/2')
             currency.delete()
@@ -252,6 +275,12 @@ class System:
 
         with FFDB.db_session:
             currency = FFDB.db.Currency.get(name=currency_name)
+            if currency is None:
+                raise EntryNotFound(currency_name)
+
+            if FFDB.db.ExchangeRate.get(currency=currency,
+                                        effective_date=first_day_of_month(effective_date)):
+                raise IllegalOperation('A2.2/6')
             exchange_rate = FFDB.db.ExchangeRate(currency=currency,
                                         rate=rate,
                                         effective_date=first_day_of_month(effective_date))
@@ -259,19 +288,44 @@ class System:
 
     @staticmethod
     def deleteExchangeRate(currency_name: str, effective_date: datetime.date):
+        if currency_name == '人民币':
+            raise IllegalOperation('A2.2/1')
+
         with FFDB.db_session:
             currency = FFDB.db.Currency.get(name=currency_name)
+            if currency is None:
+                raise EntryNotFound(currency_name)
+
             er = FFDB.db.ExchangeRate.get(currency=currency,
                                           effective_date=first_day_of_month(effective_date))
+
+            if er is None:
+                raise EntryNotFound(currency_name, first_day_of_month(effective_date))
+
             if er.debit_entries or er.credit_entries:
                 raise IllegalOperation('A2.1/3')
 
             er.delete()
 
     @staticmethod
+    def exchangeRates(currency_name: str) -> list[ExchangeRate]:
+        with FFDB.db_session:
+            currency = FFDB.db.Currency.get(name=currency_name)
+            if currency is None:
+                raise EntryNotFound(currency_name)
+
+            exchange_rates = currency.exchange_rates.select().order_by(
+                FFDB.db.ExchangeRate.effective_date.desc()
+            )
+            return list((ExchangeRate(er) for er in exchange_rates))
+
+    @staticmethod
     def exchangeRate(currency_name: str, date: datetime.date) -> Optional[ExchangeRate]:
         with FFDB.db_session:
             currency = FFDB.db.Currency.get(name=currency_name)
+            if currency is None:
+                raise EntryNotFound(currency_name)
+
             er = currency.exchange_rates.select(lambda er: er.effective_date <= date).order_by(
                 FFDB.db.ExchangeRate.effective_date.desc()
             ).first()
@@ -282,6 +336,9 @@ class System:
     @staticmethod
     def createVoucher(number: str, date: datetime.date, note: str='') -> 'FFDB.db.Voucher':
         with FFDB.db_session:
+            if FFDB.db.Voucher.get(number=number):
+                raise IllegalOperation('A3.2/4')
+
             voucher = FFDB.db.Voucher(number=number, date=date, note=note)
             return voucher
 
@@ -289,19 +346,25 @@ class System:
     def setVoucherDate(voucher_number: str, date: datetime.date):
         with FFDB.db_session:
             voucher = FFDB.db.Voucher.get(number=voucher_number)
+            if voucher is None:
+                raise EntryNotFound(voucher_number)
             voucher.date = date
 
     @staticmethod
     def setVoucherNote(voucher_number: str, note: str):
         with FFDB.db_session:
             voucher = FFDB.db.Voucher.get(number=voucher_number)
+            if voucher is None:
+                raise EntryNotFound(voucher_number)
             voucher.note = note
 
     @staticmethod
     def deleteVoucher(number: str):
         with FFDB.db_session:
-            return FFDB.db.Voucher.get(number=number).delete()
-
+            voucher = FFDB.db.Voucher.get(number=number)
+            if voucher is None:
+                raise EntryNotFound(number)
+            voucher.delete()
 
     @staticmethod
     def updateDebitCreditEntries(voucher_number: str,
@@ -310,6 +373,9 @@ class System:
 
         with FFDB.db_session:
             voucher = FFDB.db.Voucher.get(number=voucher_number)
+            if voucher is None:
+                raise EntryNotFound(voucher_number)
+
             voucher.debit_entries.clear()
             voucher.credit_entries.clear()
 
