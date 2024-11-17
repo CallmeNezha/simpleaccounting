@@ -119,8 +119,8 @@ class MultiLineEditDelegate(QtWidgets.QStyledItemDelegate):
 
         def keyPressEvent(self, event):
             # Ctrl + Enter for newline
-            if event.key() == QtCore.Qt.Key_Return or event.key() == QtCore.Qt.Key_Enter:
-                if event.modifiers() & QtCore.Qt.ControlModifier:
+            if event.key() == QtCore.Qt.Key.Key_Return or event.key() == QtCore.Qt.Key.Key_Enter:
+                if event.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier:
                     # Insert a new line if Ctrl is pressed
                     self.insertPlainText("\n")
                 else:
@@ -135,7 +135,7 @@ class MultiLineEditDelegate(QtWidgets.QStyledItemDelegate):
 
     def createEditor(self, parent, option, index):
         # 使用 QPlainTextEdit 作为编辑器
-        editor = VoucherTableWidget.MultiLineEditDelegate.PlainTextEditWithEnter(parent)
+        editor = MultiLineEditDelegate.PlainTextEditWithEnter(parent)
         return editor
 
     def setEditorData(self, editor, index):
@@ -146,7 +146,8 @@ class MultiLineEditDelegate(QtWidgets.QStyledItemDelegate):
     def setModelData(self, editor, model, index):
         # 将编辑器中的多行文本保存回模型
         text = editor.toPlainText()
-        model.setData(index, text, QtCore.Qt.EditRole)
+        model.setData(index, text, QtCore.Qt.ItemDataRole.EditRole)
+        model.setData(index, datetime.datetime.now(), QtCore.Qt.ItemDataRole.StatusTipRole)
 
 
 class VoucherTableWidget(QtWidgets.QTableWidget):
@@ -267,6 +268,7 @@ class VoucherEditDialog(CustomQDialog):
     def __init__(self, date_month: datetime.date):
         super().__init__()
         self.setupUI()
+        self.de.dateChanged.connect(lambda *args: self.action_save.setEnabled(True))
         self.date_month = date_month
         self.de.setDateRange(
             first_day_of_month(self.date_month),
@@ -378,13 +380,16 @@ class VoucherEditDialog(CustomQDialog):
                 self.vouchers[self.index_current].number,
                 *self.voucherEntries()
             )
+            System.setVoucherDate(
+                self.vouchers[self.index_current].number,
+                datetime.date(self.de.date().year(), self.de.date().month(), self.de.date().day())
+            )
             self.vouchers[self.index_current] = System.voucher(self.vouchers[self.index_current].number)
         except IllegalOperation as e:
             if e.args[0] == 'A2.1/1':
                 QtWidgets.QMessageBox.critical(None, "保存失败", f"错误代码 {e.args[0]}：科目未设定币种。")
             elif e.args[0] == 'A3.2/2':
                 QtWidgets.QMessageBox.critical(None, "保存失败", f"错误代码 {e.args[0]}：借贷试算平衡。")
-
 
     def on_actionVoidTriggered(self):
         ret = QtWidgets.QMessageBox.question(None, "提示", "作废凭证将重排所有当月凭证号，是否作废该凭证?")
@@ -602,6 +607,9 @@ class VoucherEditDialog(CustomQDialog):
             self.table.item(self.table.rowCount() - 1, COLUMN_CREDIT_LOCAL_AMOUNT).setData(QtCore.Qt.ItemDataRole.UserRole, credit_total)
 
         for row in range(self.table.rowCount()):
+            if isRefreshNeeded(self.table.item(row, COLUMN_BRIEF)):
+                ...
+
             if isRefreshNeeded(self.table.item(row, COLUMN_ACCOUNT)):
                 account = self.table.item(row, COLUMN_ACCOUNT).data(QtCore.Qt.ItemDataRole.UserRole)
                 if account and account.currency:
