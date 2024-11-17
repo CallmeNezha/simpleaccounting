@@ -1,7 +1,24 @@
+"""
+    Copyright 2024- ZiJian Jiang @ https://github.com/CallmeNezha
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+"""
+
 import sys
 import datetime
 from qtpy import QtWidgets, QtGui, QtCore
 from simpleaccounting.app.system import System, IllegalOperation, EntryNotFound
+from simpleaccounting.tools.dateutil import month_of_date
 from simpleaccounting.widgets.qwidgets import CustomQDialog, CustomInputDialog, HorizontalSpacer
 
 
@@ -16,20 +33,17 @@ class CurrencyCreateDialog(CustomInputDialog):
     def setupUI(self):
         """"""
         self.setWindowTitle("创建币种")
-        self.lineedit = QtWidgets.QLineEdit()
-
+        self.le_name = QtWidgets.QLineEdit()
         form = QtWidgets.QFormLayout()
-        form.addRow("币种名称", self.lineedit)
-
+        form.addRow("币种名称", self.le_name)
         vbox = QtWidgets.QVBoxLayout(self)
         vbox.addLayout(form)
         vbox.addWidget(self.button_box)
-
-        self.lineedit.setFocus(QtCore.Qt.OtherFocusReason)
+        self.le_name.setFocus(QtCore.Qt.FocusReason.OtherFocusReason)
 
     def accept(self):
         """"""
-        name = self.lineedit.text().strip()
+        name = self.le_name.text().strip()
         if not name:
             QtWidgets.QMessageBox.critical(None, "创建失败", "名称项不可为空")
             return
@@ -48,24 +62,24 @@ class ExchangeCreateDialog(CustomInputDialog):
     def setupUI(self):
         """"""
         self.setWindowTitle("设置汇率")
-        self.dateedit = QtWidgets.QDateEdit()
-        self.dspbox = QtWidgets.QDoubleSpinBox()
-        self.dspbox.setMinimum(0.0)
-        self.dspbox.setMaximum(sys.float_info.max)
+        self.de_month = QtWidgets.QDateEdit()
+        self.dspbox_rate = QtWidgets.QDoubleSpinBox()
+        self.dspbox_rate.setMinimum(0.0)
+        self.dspbox_rate.setMaximum(sys.float_info.max)
         form = QtWidgets.QFormLayout()
-        form.addRow("日期", self.dateedit)
-        form.addRow("汇率", self.dspbox)
+        form.addRow("日期", self.de_month)
+        form.addRow("汇率", self.dspbox_rate)
         vbox = QtWidgets.QVBoxLayout(self)
         vbox.addLayout(form)
         vbox.addWidget(self.button_box)
-        self.dateedit.setFocus(QtCore.Qt.OtherFocusReason)
+        self.de_month.setFocus(QtCore.Qt.FocusReason.OtherFocusReason)
 
     def accept(self):
         """"""
-        date = self.dateedit.date()
-        date = datetime.date(date.year(), date.month(), date.day())
-        rate = self.dspbox.value()
-        if self.on_accept((date, rate)):
+        date = self.de_month.date()
+        month = month_of_date(datetime.date(date.year(), date.month(), 1))
+        rate = self.dspbox_rate.value()
+        if self.on_accept((month, rate)):
             super().accept()
 
 
@@ -80,19 +94,15 @@ class CurrencyDialog(CustomQDialog):
     def setupUI(self):
         """"""
         self.setWindowTitle("货币汇率")
-
         self.list_currency = QtWidgets.QListWidget()
-        self.toolbar_currency = QtWidgets.QToolBar()
-        self.toolbar_currency.addWidget(HorizontalSpacer())
-
+        self.tbar_currency = QtWidgets.QToolBar()
+        self.tbar_currency.addWidget(HorizontalSpacer())
         self.action_create_currency = QtWidgets.QAction(QtGui.QIcon(":/icons/RuleCreate(Color).svg"), "创建", self)
         self.action_create_currency.triggered.connect(self.on_createCurrency)
         self.action_delete_currency = QtWidgets.QAction(QtGui.QIcon(":/icons/RuleDelete1(Color).svg"), "删除", self)
         self.action_delete_currency.triggered.connect(self.on_deleteCurrency)
-
-        self.toolbar_currency.addAction(self.action_create_currency)
-        self.toolbar_currency.addAction(self.action_delete_currency)
-
+        self.tbar_currency.addAction(self.action_create_currency)
+        self.tbar_currency.addAction(self.action_delete_currency)
         self.table_exchange = QtWidgets.QTableWidget()
         self.table_exchange.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         self.table_exchange.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
@@ -103,27 +113,22 @@ class CurrencyDialog(CustomQDialog):
         self.table_exchange.verticalHeader().setVisible(False)
         self.table_exchange.setHorizontalHeaderLabels(["日期", "汇率"])
 
-        self.toolbar_exchange = QtWidgets.QToolBar()
-        self.toolbar_exchange.addWidget(HorizontalSpacer())
-
+        self.tbar_exchange = QtWidgets.QToolBar()
+        self.tbar_exchange.addWidget(HorizontalSpacer())
         self.action_create_exchange = QtWidgets.QAction(QtGui.QIcon(":/icons/RuleCreate(Color).svg"), "创建", self)
         self.action_create_exchange.triggered.connect(self.on_createExchange)
         self.action_delete_exchange = QtWidgets.QAction(QtGui.QIcon(":/icons/RuleDelete1(Color).svg"), "删除", self)
         self.action_delete_exchange.triggered.connect(self.on_deleteExchange)
-
-        self.toolbar_exchange.addAction(self.action_create_exchange)
-        self.toolbar_exchange.addAction(self.action_delete_exchange)
-
+        self.tbar_exchange.addAction(self.action_create_exchange)
+        self.tbar_exchange.addAction(self.action_delete_exchange)
         self.gbox_currency = QtWidgets.QGroupBox("币种", self)
         self.gbox_currency.setLayout(QtWidgets.QVBoxLayout())
-        self.gbox_currency.layout().addWidget(self.toolbar_currency)
+        self.gbox_currency.layout().addWidget(self.tbar_currency)
         self.gbox_currency.layout().addWidget(self.list_currency)
-
         self.gbox_exchange = QtWidgets.QGroupBox("汇率", self)
         self.gbox_exchange.setLayout(QtWidgets.QVBoxLayout())
-        self.gbox_exchange.layout().addWidget(self.toolbar_exchange)
+        self.gbox_exchange.layout().addWidget(self.tbar_exchange)
         self.gbox_exchange.layout().addWidget(self.table_exchange)
-
         hbox = QtWidgets.QHBoxLayout(self)
         hbox.addWidget(self.gbox_currency)
         hbox.addWidget(self.gbox_exchange)
@@ -175,11 +180,11 @@ class CurrencyDialog(CustomQDialog):
             return True
 
         dialog = ExchangeCreateDialog(addExchange)
-        dialog.dateedit.setDisplayFormat("yyyy.MM")
+        dialog.de_month.setDisplayFormat("yyyy.MM")
 
-        date_until = System.meta().date_until
-        dialog.dateedit.setDateRange(datetime.date(1999, 1, 1), date_until)
-        dialog.dateedit.setDate(QtCore.QDate(date_until.year, date_until.month, 1))
+        date_until = System.meta().month_until
+        dialog.de_month.setDateRange(datetime.date(1999, 1, 1), date_until)
+        dialog.de_month.setDate(QtCore.QDate(date_until.year, date_until.month, 1))
         dialog.exec_()
 
     def on_deleteExchange(self):
@@ -229,6 +234,6 @@ class CurrencyDialog(CustomQDialog):
         self.table_exchange.setRowCount(len(exchange_rates))
 
         for row, rate in enumerate(exchange_rates):
-            self.table_exchange.setItem(row, 0, QtWidgets.QTableWidgetItem(rate.effective_date.strftime("%Y.%m")))
+            self.table_exchange.setItem(row, 0, QtWidgets.QTableWidgetItem(rate.effective_month.strftime("%Y.%m")))
             self.table_exchange.setItem(row, 1, QtWidgets.QTableWidgetItem(f"{rate.rate:.2f}"))
             row += 1

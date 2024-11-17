@@ -1,3 +1,19 @@
+"""
+    Copyright 2024- ZiJian Jiang @ https://github.com/CallmeNezha
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+"""
+
 import pathlib
 import datetime
 
@@ -7,7 +23,7 @@ from pydantic import BaseModel, PositiveFloat, ValidationError
 from simpleaccounting.tools.mymath import FloatWithPrecision
 from simpleaccounting.ffdb import FFDB
 from simpleaccounting.defaults import DEFAULT_ACCOUNTS_2023
-from simpleaccounting.tools.dateutil import last_day_of_previous_month, first_day_of_month, last_day_of_month
+from simpleaccounting.tools.dateutil import last_day_of_previous_month, first_day_of_month, last_day_of_month, month_of_date
 
 
 class IllegalOperation(Exception):
@@ -23,15 +39,15 @@ class Meta:
     def __init__(self, meta):
         self.version = meta.version
         self.company = meta.company
-        self.date_from = meta.date_from
-        self.date_until = meta.date_until
+        self.month_from = meta.month_from
+        self.month_until = meta.month_until
 
 
 class ExchangeRate:
 
     def __init__(self, exchange_rate):
         self.rate = exchange_rate.rate
-        self.effective_date = exchange_rate.effective_date
+        self.effective_month = exchange_rate.effective_month
 
 
 class Currency:
@@ -80,10 +96,49 @@ class Account:
                 return Currency(currency)
 
 
+class DebitEntry:
+    """"""
+    def __init__(self, debitEntry):
+        self.account = Account(debitEntry.account)
+        self.amount = debitEntry.amount
+        self.exchange_rate = ExchangeRate(debitEntry.exchange_rate)
+        self.brief = debitEntry.brief
+
+
+class CreditEntry:
+    """"""
+    def __init__(self, creditEntry):
+        self.account = Account(creditEntry.account)
+        self.amount = creditEntry.amount
+        self.exchange_rate = ExchangeRate(creditEntry.exchange_rate)
+        self.brief = creditEntry.brief
+
+
 class VoucherEntry(BaseModel):
     account_code: str
     amount: PositiveFloat
     brief: str = ""
+
+
+class Voucher:
+
+    def __init__(self, voucher):
+        self.number = voucher.number
+        self.category = voucher.category
+        self.date = voucher.date
+        self.note = voucher.note
+
+        self.debit_entries = []
+        self.credit_entries = []
+
+        with FFDB.db_session:
+            debit_entries = FFDB.db.Voucher.get(number=self.number).debit_entries
+            credit_entries = FFDB.db.Voucher.get(number=self.number).credit_entries
+
+            for debit_entry in debit_entries:
+                self.debit_entries.append(DebitEntry(debit_entry))
+            for credit_entry in credit_entries:
+                self.credit_entries.append(CreditEntry(credit_entry))
 
 
 class System:
@@ -103,27 +158,30 @@ class System:
         return code_parent == code_code_parent
 
     @staticmethod
-    def __is_valid_account_code(code: str) -> bool:
-        if not code.strip():
+    def __is_account_code_format(text: str) -> bool:
+        if not text.strip():
             return False
-        if code.startswith('.') or code.endswith('.'):
+        if text.startswith('.') or text.endswith('.'):
             return False
         try:
-            map(int, code.strip().split('.'))
+            map(int, text.strip().split('.'))
             return True
         except Exception as e:
             return False
 
     @staticmethod
-    def new(filename: pathlib.Path, date: datetime.date):
+    def new(filename: pathlib.Path, month: datetime.date):
+        # hard transfer
+        month = month_of_date(month)
+        #
         FFDB.bindDatabase(filename)
 
         with FFDB.db_session:
             FFDB.db.MetaData(
                 version='2024.11.07',
                 company=filename.stem,
-                date_from=first_day_of_month(date),
-                date_until=last_day_of_month(date)
+                month_from=month,
+                month_until=month
             )
 
             rmb = FFDB.db.Currency(
@@ -133,7 +191,7 @@ class System:
             FFDB.db.ExchangeRate(
                 currency=rmb,
                 rate=1.0,
-                effective_date=first_day_of_month(date)
+                effective_month=month
             )
 
             for major_category, accounts in DEFAULT_ACCOUNTS_2023.items():
@@ -155,9 +213,7 @@ class System:
             for account in FFDB.db.Account.select():
                 account.qualname = System.__account_qualname(account)
 
-
             annual_profit = FFDB.db.Account.get(name='本年利润')
-            annual_profit.activated = True
             annual_profit.currency = rmb
 
     @staticmethod
@@ -175,9 +231,9 @@ class System:
                       name: str,
                       ) -> Account:
         """"""
-        if not System.__is_valid_account_code(code):
+        if not System.__is_account_code_format(code):
             raise IllegalOperation("A1.2.1.2/1")
-        elif not System.__is_valid_account_code(parent_code):
+        elif not System.__is_account_code_format(parent_code):
             raise IllegalOperation("A1.2.1.2/1")
 
         if not System.__is_account_code_parent(parent_code, code):
@@ -232,6 +288,22 @@ class System:
     def account(code: str) -> Optional[Account]:
         with FFDB.db_session:
             account = FFDB.db.Account.get(code=code)
+            if account is None:
+                return None
+            return Account(account)
+
+    @staticmethod
+    def accountByName(name: str):
+        with FFDB.db_session:
+            account = FFDB.db.Account.get(name=name)
+            if account is None:
+                return None
+            return Account(account)
+
+    @staticmethod
+    def accountByQualname(qualname: str):
+        with FFDB.db_session:
+            account = FFDB.db.Account.get(qualname=qualname)
             if account is None:
                 return None
             return Account(account)
@@ -292,7 +364,10 @@ class System:
             currency.delete()
 
     @staticmethod
-    def createExchangeRate(currency_name: str, rate: float, effective_date: datetime.date):
+    def createExchangeRate(currency_name: str, rate: float, effective_month: datetime.date):
+        # hard transfer to month
+        effective_month = month_of_date(effective_month)
+
         if currency_name == '人民币':
             raise IllegalOperation('A2.2/1')
 
@@ -302,15 +377,18 @@ class System:
                 raise EntryNotFound(currency_name)
 
             if FFDB.db.ExchangeRate.get(currency=currency,
-                                        effective_date=first_day_of_month(effective_date)):
+                                        effective_month=first_day_of_month(effective_month)):
                 raise IllegalOperation('A2.2/6')
             exchange_rate = FFDB.db.ExchangeRate(currency=currency,
-                                        rate=rate,
-                                        effective_date=first_day_of_month(effective_date))
+                                                 rate=rate,
+                                                 effective_month=first_day_of_month(effective_month))
             return ExchangeRate(exchange_rate)
 
     @staticmethod
-    def deleteExchangeRate(currency_name: str, effective_date: datetime.date):
+    def deleteExchangeRate(currency_name: str, effective_month: datetime.date):
+        # hard transfer to month
+        effective_month = month_of_date(effective_month)
+
         if currency_name == '人民币':
             raise IllegalOperation('A2.2/1')
 
@@ -320,10 +398,10 @@ class System:
                 raise EntryNotFound(currency_name)
 
             er = FFDB.db.ExchangeRate.get(currency=currency,
-                                          effective_date=first_day_of_month(effective_date))
+                                          effective_month=effective_month)
 
             if er is None:
-                raise EntryNotFound(currency_name, first_day_of_month(effective_date))
+                raise EntryNotFound(currency_name, effective_month)
 
             if er.debit_entries or er.credit_entries:
                 raise IllegalOperation('A2.1/3')
@@ -338,7 +416,7 @@ class System:
                 raise EntryNotFound(currency_name)
 
             exchange_rates = currency.exchange_rates.select().order_by(
-                FFDB.db.ExchangeRate.effective_date.desc()
+                FFDB.db.ExchangeRate.effective_month.desc()
             )
             return list((ExchangeRate(er) for er in exchange_rates))
 
@@ -349,12 +427,24 @@ class System:
             if currency is None:
                 raise EntryNotFound(currency_name)
 
-            er = currency.exchange_rates.select(lambda er: er.effective_date <= date).order_by(
-                FFDB.db.ExchangeRate.effective_date.desc()
+            er = currency.exchange_rates.select(lambda er: er.effective_month <= date).order_by(
+                FFDB.db.ExchangeRate.effective_month.desc()
             ).first()
             if er is None:
                 return None
             return ExchangeRate(er)
+
+    @staticmethod
+    def voucher(number: str):
+        with FFDB.db_session:
+            if not FFDB.db.Voucher.get(number=number):
+                raise EntryNotFound(number)
+            return Voucher(FFDB.db.Voucher.get(number=number))
+
+    @staticmethod
+    def vouchers(filter):
+        with FFDB.db_session:
+            return [Voucher(v) for v in FFDB.db.Voucher.select(filter)]
 
     @staticmethod
     def createVoucher(number: str, date: datetime.date, note: str='') -> 'FFDB.db.Voucher':
@@ -363,7 +453,7 @@ class System:
                 raise IllegalOperation('A3.2/4')
 
             voucher = FFDB.db.Voucher(number=number, date=date, note=note)
-            return voucher
+            return Voucher(voucher)
 
     @staticmethod
     def setVoucherDate(voucher_number: str, date: datetime.date):
@@ -371,6 +461,11 @@ class System:
             voucher = FFDB.db.Voucher.get(number=voucher_number)
             if voucher is None:
                 raise EntryNotFound(voucher_number)
+
+            if (first_day_of_month(voucher.date) >= date or
+                last_day_of_month(voucher.date) <= date):
+                raise IllegalOperation("Can't set date outside voucher's month")
+            #
             voucher.date = date
 
     @staticmethod
@@ -380,6 +475,14 @@ class System:
             if voucher is None:
                 raise EntryNotFound(voucher_number)
             voucher.note = note
+
+    @staticmethod
+    def changeVoucherNumber(old_voucher_number: str, new_voucher_number: str):
+        with FFDB.db_session:
+            voucher = FFDB.db.Voucher.get(number=old_voucher_number)
+            if voucher is None:
+                raise EntryNotFound(old_voucher_number)
+            voucher.number = new_voucher_number
 
     @staticmethod
     def deleteVoucher(number: str):
@@ -412,8 +515,8 @@ class System:
                     raise IllegalOperation('A2.1/1')
 
                 currency = FFDB.db.Currency.get(name=account.currency.name)
-                er = currency.exchange_rates.select(lambda er: er.effective_date <= voucher.date).order_by(
-                    FFDB.db.ExchangeRate.effective_date.desc()
+                er = currency.exchange_rates.select(lambda er: er.effective_month <= voucher.date).order_by(
+                    FFDB.db.ExchangeRate.effective_month.desc()
                 ).first()
                 FFDB.db.DebitEntry(voucher=voucher,
                                    account=account,
@@ -429,8 +532,8 @@ class System:
                     raise IllegalOperation('A2.1/1')
 
                 currency = FFDB.db.Currency.get(name=account.currency.name)
-                er = currency.exchange_rates.select(lambda er: er.effective_date <= voucher.date).order_by(
-                    FFDB.db.ExchangeRate.effective_date.desc()
+                er = currency.exchange_rates.select(lambda er: er.effective_month <= voucher.date).order_by(
+                    FFDB.db.ExchangeRate.effective_month.desc()
                 ).first()
                 FFDB.db.CreditEntry(voucher=voucher,
                                     account=account,
@@ -443,7 +546,24 @@ class System:
                 raise IllegalOperation('A3.2/2')
 
 
+    @staticmethod
+    def increaseMRUAccount(account_code: str):
+        with FFDB.db_session:
+            mru = FFDB.db.MRU_Account.get(account_code)
+            if mru is None:
+                mru = FFDB.db.MRU_Account(
+                    account_code=account_code
+                )
+            mru.hits += 1
 
+
+    @staticmethod
+    def topMRUAccounts(N: int):
+        with FFDB.db_session:
+            return [
+                Account(a) for a in FFDB.db.MRU_Account.select().sort_by(
+                FFDB.db.MRU_Account.hits.desc()).limit(N)
+            ]
 
 
 

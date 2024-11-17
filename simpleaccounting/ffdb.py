@@ -1,3 +1,19 @@
+"""
+    Copyright 2024- ZiJian Jiang @ https://github.com/CallmeNezha
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+"""
+
 from pony.orm import Database, Required, Optional, Set, PrimaryKey, db_session
 import datetime
 from collections import defaultdict
@@ -22,9 +38,8 @@ class FFDB:
             id = PrimaryKey(int, auto=True)
             version = Required(str)
             company = Required(str)
-            date_from = Required(datetime.date)
-            date_until = Required(datetime.date)
-
+            month_from = Required(datetime.date)
+            month_until = Required(datetime.date)
 
         class Currency(db.Entity):
             id = PrimaryKey(int, auto=True)
@@ -32,15 +47,13 @@ class FFDB:
             accounts = Set('Account', reverse='currency', cascade_delete=False)
             exchange_rates = Set('ExchangeRate', reverse='currency')
 
-
         class ExchangeRate(db.Entity):
             id = PrimaryKey(int, auto=True)  # 汇率唯一标识
             currency = Required(Currency)          # 币种
             rate = Required(float)                 # 汇率
-            effective_date = Required(datetime.date) # 生效日期，记录汇率的月份
+            effective_month = Required(datetime.date) # 生效日期，记录汇率的月份
             debit_entries = Set('DebitEntry', reverse='exchange_rate', cascade_delete=False)
             credit_entries = Set('CreditEntry', reverse='exchange_rate', cascade_delete=False)
-
 
         class Account(db.Entity):
             id = PrimaryKey(int, auto=True)  # 科目的唯一标识
@@ -58,7 +71,6 @@ class FFDB:
             credit_entries = Set('CreditEntry', reverse='account')    # 贷方条目集合
             ending_balances = Set('Shadow_EndingBalance', reverse='account') # 结余条目集合
 
-
         # 定义 DebitEntry 实体，表示借方的具体条目
         class DebitEntry(db.Entity):
             id = PrimaryKey(int, auto=True)
@@ -68,7 +80,6 @@ class FFDB:
             exchange_rate = Required(ExchangeRate) # 借方汇率
             brief = Optional(str)           # 凭证描述
 
-
         # 定义 CreditEntry 实体，表示贷方的具体条目
         class CreditEntry(db.Entity):
             id = PrimaryKey(int, auto=True)
@@ -77,7 +88,6 @@ class FFDB:
             amount = Required(float)        # 贷方币种金额
             exchange_rate = Required(ExchangeRate) # 贷方汇率
             brief = Optional(str)           # 凭证描述
-
 
         # 定义 Voucher 实体类
         class Voucher(db.Entity):
@@ -90,19 +100,18 @@ class FFDB:
             note = Optional(str)                  # 备注
 
 
-        class MRU_Account(db.Entity):
-            id = PrimaryKey(int, auto=True)
-            account_name = Required(str, unique=True)
-            hits = Required(int)
-
-
         class Shadow_EndingBalance(db.Entity):
             id = PrimaryKey(int, auto=True)   # 结余唯一标识
             account = Required(Account)             # 关联的科目
             currency_amount = Required(float)       # 币种金额
             local_currency_amount = Required(float) # 本位币金额
-            date = Required(datetime.date)          # 结余日期
+            month = Required(datetime.date)          # 结余年月
 
+        # -------- User data
+        class MRU_Account(db.Entity):
+            id = PrimaryKey(int, auto=True)
+            account_code = Required(str, unique=True)
+            hits = Required(int, default=0)
 
         class OperationLog(db.Entity):
             id = PrimaryKey(int, auto=True)

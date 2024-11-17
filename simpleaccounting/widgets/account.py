@@ -1,3 +1,19 @@
+"""
+    Copyright 2024- ZiJian Jiang
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+"""
+
 from qtpy import QtWidgets, QtCore, QtGui
 from simpleaccounting.widgets.qwidgets import CustomInputDialog, CustomQDialog, HorizontalSpacer
 from simpleaccounting.app.system import System, IllegalOperation, EntryNotFound
@@ -36,10 +52,13 @@ class AccountCreateDialog(CustomInputDialog):
 
 class AccountActivateDialog(CustomInputDialog):
 
-    def __init__(self, on_accept=lambda b: ...):
+    def __init__(self, name: str, code:str, on_accept=lambda b: ...):
         super().__init__()
         self.setupUI()
-        self.updateUI()
+        for currency in System.currencies():
+            self.combobox.addItem(currency.name)
+        # !for
+        self.setWindowTitle(f"启用科目: {name}({code})")
         self.on_accept = on_accept
 
     def setupUI(self):
@@ -51,12 +70,6 @@ class AccountActivateDialog(CustomInputDialog):
         vbox.addWidget(QtWidgets.QLabel("启用操作不可撤销，科目不可删除"))
         vbox.addLayout(form)
         vbox.addWidget(self.button_box)
-
-
-    def updateUI(self):
-        for currency in System.currencies():
-            self.combobox.addItem(currency.name)
-        # !for
 
     def accept(self):
         currency = self.combobox.currentText()
@@ -325,7 +338,7 @@ class AccountDialog(CustomQDialog):
             self.on_select(item, item)
             return True
 
-        dialog = AccountActivateDialog(activate)
+        dialog = AccountActivateDialog(account.name, account.code, activate)
         dialog.exec_()
 
 
