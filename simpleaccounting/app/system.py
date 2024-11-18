@@ -19,6 +19,7 @@ import datetime
 
 from typing import Optional
 from pydantic import BaseModel, PositiveFloat, ValidationError
+from collections import defaultdict
 
 from simpleaccounting.tools.mymath import FloatWithPrecision
 from simpleaccounting.ffdb import FFDB
@@ -26,6 +27,7 @@ from simpleaccounting.defaults import DEFAULT_ACCOUNTS_2023
 from simpleaccounting.tools.dateutil import last_day_of_previous_month, first_day_of_month, last_day_of_month, month_of_date
 
 
+# exceptions
 class IllegalOperation(Exception):
     pass
 
@@ -34,6 +36,7 @@ class EntryNotFound(IllegalOperation):
     pass
 
 
+# models
 class Meta:
     """"""
     def __init__(self, meta):
@@ -141,8 +144,9 @@ class Voucher:
                 self.credit_entries.append(CreditEntry(credit_entry))
 
 
+# system
 class System:
-
+    """"""
     @staticmethod
     def __account_qualname(account):
         qualname = account.name
@@ -462,8 +466,8 @@ class System:
             if voucher is None:
                 raise EntryNotFound(voucher_number)
 
-            if (first_day_of_month(voucher.date) >= date or
-                last_day_of_month(voucher.date) <= date):
+            if (first_day_of_month(voucher.date) > date or
+                last_day_of_month(voucher.date) < date):
                 raise IllegalOperation("Can't set date outside voucher's month")
             #
             voucher.date = date
@@ -545,6 +549,8 @@ class System:
             if sum_debit != sum_credit:
                 raise IllegalOperation('A3.2/2')
 
+        if not voucher_number.endswith('/MECF'):
+            System.updateMonthEndCarryForwardVoucher(voucher.date)
 
     @staticmethod
     def increaseMRUAccount(account_code: str):
@@ -556,7 +562,6 @@ class System:
                 )
             mru.hits += 1
 
-
     @staticmethod
     def topMRUAccounts(N: int):
         with FFDB.db_session:
@@ -565,5 +570,71 @@ class System:
                 FFDB.db.MRU_Account.hits.desc()).limit(N)
             ]
 
+    @staticmethod
+    def updateMonthEndCarryForwardVoucher(month: datetime.date):
+        with FFDB.db_session:
+            end_voucher = FFDB.db.Voucher.get(number=month.strftime('%Y-%m/MECF'))
+            if not end_voucher:
+                end_voucher = FFDB.db.Voucher(number=month.strftime('%Y-%m/MECF'),
+                                              date=last_day_of_month(month),
+                                              note="Month End Carry Forward")
+
+            end_voucher.debit_entries.clear()
+            end_voucher.credit_entries.clear()
 
 
+            number_cost_category = '5'
+            number_income_and_expense_category = '6'
+
+            # 获取所有成本及损益大类细分科目
+            cost_categories = [
+                acc.code for acc in FFDB.db.Account.select(
+                    lambda a: not a.children and a.code.startswith(number_cost_category))]
+
+            income_and_expense_categories = [
+                acc.code for acc in FFDB.db.Account.select(
+                    lambda a: not a.children and a.code.startswith(number_income_and_expense_category))]
+
+            # 获取本月度成本及损益大类细分科目的记账凭证条目
+            debit_entries = []
+            credit_entries = []
+
+            query = FFDB.db.Voucher.select(lambda v: first_day_of_month(month) <= v.date and v.date <= last_day_of_month(month))
+
+            for v in query:
+                for entry in v.debit_entries:
+                    if entry.account.code in cost_categories + income_and_expense_categories:
+                        debit_entries.append(entry)
+                for entry in v.credit_entries:
+                    if entry.account.code in cost_categories + income_and_expense_categories:
+                        credit_entries.append(entry)
+
+            # 借方本期发生额
+            debit_credit_amounts = defaultdict(lambda: FloatWithPrecision(0.0))
+
+            for entry in debit_entries:
+                debit_credit_amounts[entry.account.code] += entry.amount
+
+            for entry in credit_entries:
+                debit_credit_amounts[entry.account.code] -= entry.amount
+
+            # 借方和贷方本期发生额
+            credit_entries = []
+            debit_entries = []
+            profit_remains = FloatWithPrecision(0.0)
+            for code, amount in debit_credit_amounts.items():
+                if amount > FloatWithPrecision(0.0):
+                    credit_entries.append(VoucherEntry(account_code=code, amount=amount))
+                elif amount < FloatWithPrecision(0.0):
+                    debit_entries.append(VoucherEntry(account_code=code, amount=abs(amount)))
+                # !else
+                profit_remains += amount
+            # !for
+
+            if profit_remains > 0.0:
+                debit_entries.append(VoucherEntry(account_code='4103', amount=profit_remains))
+            elif profit_remains < 0.0:
+                credit_entries.append(VoucherEntry(account_code='4103', amount=abs(profit_remains)))
+            # !if
+        System.updateDebitCreditEntries(end_voucher.number, debit_entries, credit_entries)
+        return Voucher(end_voucher)
