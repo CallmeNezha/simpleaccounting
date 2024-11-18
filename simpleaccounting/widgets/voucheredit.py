@@ -371,10 +371,7 @@ class VoucherEditDialog(CustomQDialog):
         if row != -1:
             self.table.removeRow(row)
 
-    def on_modificationChanged(self):
-        self.action_save.setEnabled(True)
-
-    def on_actionSaveTriggered(self):
+    def saveCurrentVoucher(self) -> bool:
         try:
             System.updateDebitCreditEntries(
                 self.vouchers[self.index_current].number,
@@ -385,163 +382,16 @@ class VoucherEditDialog(CustomQDialog):
                 datetime.date(self.de.date().year(), self.de.date().month(), self.de.date().day())
             )
             self.vouchers[self.index_current] = System.voucher(self.vouchers[self.index_current].number)
+            self.action_save.setEnabled(False)
+            return True
         except IllegalOperation as e:
             if e.args[0] == 'A2.1/1':
-                QtWidgets.QMessageBox.critical(None, "保存失败", f"错误代码 {e.args[0]}：科目未设定币种。")
+                QtWidgets.QMessageBox.critical(None, "保存失败", f"错误代码 A2.1/1：科目未设定币种。")
             elif e.args[0] == 'A3.2/2':
-                QtWidgets.QMessageBox.critical(None, "保存失败", f"错误代码 {e.args[0]}：借贷试算平衡。")
-
-    def on_actionVoidTriggered(self):
-        ret = QtWidgets.QMessageBox.question(None, "提示", "作废凭证将重排所有当月凭证号，是否作废该凭证?")
-        if ret == QtWidgets.QDialogButtonBox.Yes:
-            System.deleteVoucher(self.vouchers[self.index_current].number)
-            self.vouchers.pop(self.index_current)
-            for i, v in enumerate(self.vouchers):
-                System.changeVoucherNumber(
-                    v.number,
-                    f"{self.date_month.strftime('%Y-%m')}/{i + 1:04d}"
-                )
-
-            self.vouchers = System.vouchers(
-                lambda v: first_day_of_month(self.date_month) <= v.date and
-                          last_day_of_month(self.date_month) >= v.date
-            )
-            self.index_current = min(self.index_current, len(self.vouchers) - 1)
-            self.updateUI()
-
-    def on_actionForwardTriggered(self):
-        if self.index_current + 1 >= len(self.vouchers):
-            # 新增凭证
-            ret = QtWidgets.QMessageBox.question(None, "提示", "已经是最末张了，是否添加新的凭证?")
-            if ret == QtWidgets.QMessageBox.Yes:
-                date = datetime.date(
-                    self.de.date().year(),
-                    self.de.date().month(),
-                    self.de.date().day()
-                )
-                #
-                voucher = System.createVoucher(
-                    number=f"{self.date_month.strftime('%Y-%m')}/{len(self.vouchers) + 1:04d}",
-                    date=date,
-                    note=""
-                )
-                self.vouchers.append(voucher)
-                self.index_current = len(self.vouchers) - 1
-                self.updateUI()
+                QtWidgets.QMessageBox.critical(None, "保存失败", f"错误代码 A3.2/2：借贷试算不平衡。")
             else:
-                return
-        else:
-            # 下一个凭证
-            self.index_current += 1
-            self.updateUI()
-
-    def on_actionBackTriggered(self):
-        self.index_current -= 1
-        self.updateUI()
-
-    def on_actionFirstTriggered(self):
-        self.index_current = 0
-        self.updateUI()
-
-    def on_actionLastTriggered(self):
-        self.index_current = len(self.vouchers) - 1
-        self.updateUI()
-
-    def updateUI(self):
-        """"""
-        # update title
-        self.setWindowTitle(f"凭证录入 ({self.index_current + 1}/{len(self.vouchers)})")
-        # enable/disable actions
-        self.action_back.setEnabled(self.index_current > 0)
-        self.action_first.setEnabled(self.index_current > 0)
-        self.action_last.setEnabled(self.index_current < len(self.vouchers) - 1)
-        for a in [self.action_print, self.action_insert_row_last,
-                  self.action_save, self.action_void]:
-            a.setEnabled(self.index_current != -1)
-        # change visible widget
-        if self.index_current != -1:
-            self.stack.setCurrentWidget(self.table)
-            voucher = self.vouchers[self.index_current]
-            self.de.setDate(voucher.date)
-            self.lbl_voucher_number.setText(voucher.number)
-            self.loadVoucherIntoTable(voucher)
-        else:
-            self.stack.setCurrentWidget(self.lbl_hint)
-            self.lbl_voucher_number.setText("")
-        #
-        self.action_save.setEnabled(False)
-
-    def loadVoucherIntoTable(self, voucher: Voucher):
-        self.table.clear()
-        row_count = len(voucher.debit_entries) + len(voucher.credit_entries)
-        self.table.setRowCount(row_count if row_count > 0 else 8)
-        for r, entry in enumerate(voucher.debit_entries):
-            self.table.item(r, COLUMN_BRIEF).setText(entry.brief)
-            self.table.item(r, COLUMN_ACCOUNT).setText(entry.account.qualname)
-            self.table.item(r, COLUMN_ACCOUNT).setData(
-                QtCore.Qt.ItemDataRole.UserRole,
-                entry.account
-            )
-            self.table.item(r, COLUMN_DEBIT_CURRENCY_AMOUNT).setText(str(FloatWithPrecision(entry.amount)))
-            self.table.item(r, COLUMN_DEBIT_CURRENCY_AMOUNT).setData(
-                QtCore.Qt.ItemDataRole.UserRole,
-                FloatWithPrecision(entry.amount)
-            )
-            self.table.item(r, COLUMN_CURRENCY).setText(entry.account.currency.name)
-            self.table.item(r, COLUMN_CURRENCY).setData(
-                QtCore.Qt.ItemDataRole.UserRole,
-                entry.account.currency
-            )
-            self.table.item(r, COLUMN_EXCHANGE_RATE).setText(str(FloatWithPrecision(entry.exchange_rate.rate)))
-            self.table.item(r, COLUMN_EXCHANGE_RATE).setData(
-                QtCore.Qt.ItemDataRole.UserRole,
-                entry.exchange_rate
-            )
-            self.table.item(r, COLUMN_DEBIT_LOCAL_AMOUNT).setText(
-                str(FloatWithPrecision(entry.exchange_rate.rate * entry.amount)))
-            self.table.item(r, COLUMN_DEBIT_LOCAL_AMOUNT).setData(
-                QtCore.Qt.ItemDataRole.UserRole,
-                FloatWithPrecision(entry.exchange_rate.rate * entry.amount)
-            )
-        # !for
-        offset = len(voucher.debit_entries)
-        for i, entry in enumerate(voucher.credit_entries):
-            r = i + offset
-            self.table.item(r, COLUMN_BRIEF).setText(entry.brief)
-            self.table.item(r, COLUMN_ACCOUNT).setText(entry.account.qualname)
-            self.table.item(r, COLUMN_ACCOUNT).setData(
-                QtCore.Qt.ItemDataRole.UserRole,
-                entry.account
-            )
-            self.table.item(r, COLUMN_CREDIT_CURRENCY_AMOUNT).setText(str(FloatWithPrecision(entry.amount)))
-            self.table.item(r, COLUMN_CREDIT_CURRENCY_AMOUNT).setData(
-                QtCore.Qt.ItemDataRole.UserRole,
-                FloatWithPrecision(entry.amount)
-            )
-            self.table.item(r, COLUMN_CURRENCY).setText(entry.account.currency.name)
-            self.table.item(r, COLUMN_CURRENCY).setData(
-                QtCore.Qt.ItemDataRole.UserRole,
-                entry.account.currency
-            )
-            self.table.item(r, COLUMN_EXCHANGE_RATE).setText(str(FloatWithPrecision(entry.exchange_rate.rate)))
-            self.table.item(r, COLUMN_EXCHANGE_RATE).setData(
-                QtCore.Qt.ItemDataRole.UserRole,
-                entry.exchange_rate
-            )
-            self.table.item(r, COLUMN_CREDIT_LOCAL_AMOUNT).setText(
-                str(FloatWithPrecision(entry.exchange_rate.rate * entry.amount)))
-            self.table.item(r, COLUMN_CREDIT_LOCAL_AMOUNT).setData(
-                QtCore.Qt.ItemDataRole.UserRole,
-                FloatWithPrecision(entry.exchange_rate.rate * entry.amount)
-            )
-        # !for
-
-    def close(self):
-        super().close()
-
-    def timerEvent(self, *args, **kwargs):
-        super().timerEvent(*args, **kwargs)
-        self.refresh()
+                QtWidgets.QMessageBox.critical(None, "保存失败", f"错误代码 {e.args[0]}：借贷试算平衡。")
+            return False
 
     def refresh(self):
 
@@ -693,3 +543,166 @@ class VoucherEditDialog(CustomQDialog):
                         )
                     )
         return debit_entries, credit_entries
+
+    def updateUI(self):
+        """"""
+        # update title
+        self.setWindowTitle(f"凭证录入 ({self.index_current + 1}/{len(self.vouchers)})")
+        # enable/disable actions
+        self.action_back.setEnabled(self.index_current > 0)
+        self.action_first.setEnabled(self.index_current > 0)
+        self.action_last.setEnabled(self.index_current < len(self.vouchers) - 1)
+        for a in [self.action_print, self.action_insert_row_last,
+                  self.action_save, self.action_void]:
+            a.setEnabled(self.index_current != -1)
+        # change visible widget
+        if self.index_current != -1:
+            self.stack.setCurrentWidget(self.table)
+            voucher = self.vouchers[self.index_current]
+            self.de.setDate(voucher.date)
+            self.lbl_voucher_number.setText(voucher.number)
+            self.loadVoucherIntoTable(voucher)
+        else:
+            self.stack.setCurrentWidget(self.lbl_hint)
+            self.lbl_voucher_number.setText("")
+        #
+        self.action_save.setEnabled(False)
+
+    def loadVoucherIntoTable(self, voucher: Voucher):
+        self.table.clear()
+        row_count = len(voucher.debit_entries) + len(voucher.credit_entries)
+        self.table.setRowCount(row_count if row_count > 0 else 8)
+        for r, entry in enumerate(voucher.debit_entries):
+            self.table.item(r, COLUMN_BRIEF).setText(entry.brief)
+            self.table.item(r, COLUMN_ACCOUNT).setText(entry.account.qualname)
+            self.table.item(r, COLUMN_ACCOUNT).setData(
+                QtCore.Qt.ItemDataRole.UserRole,
+                entry.account
+            )
+            self.table.item(r, COLUMN_DEBIT_CURRENCY_AMOUNT).setText(str(FloatWithPrecision(entry.amount)))
+            self.table.item(r, COLUMN_DEBIT_CURRENCY_AMOUNT).setData(
+                QtCore.Qt.ItemDataRole.UserRole,
+                FloatWithPrecision(entry.amount)
+            )
+            self.table.item(r, COLUMN_CURRENCY).setText(entry.account.currency.name)
+            self.table.item(r, COLUMN_CURRENCY).setData(
+                QtCore.Qt.ItemDataRole.UserRole,
+                entry.account.currency
+            )
+            self.table.item(r, COLUMN_EXCHANGE_RATE).setText(str(FloatWithPrecision(entry.exchange_rate.rate)))
+            self.table.item(r, COLUMN_EXCHANGE_RATE).setData(
+                QtCore.Qt.ItemDataRole.UserRole,
+                entry.exchange_rate
+            )
+            self.table.item(r, COLUMN_DEBIT_LOCAL_AMOUNT).setText(
+                str(FloatWithPrecision(entry.exchange_rate.rate * entry.amount)))
+            self.table.item(r, COLUMN_DEBIT_LOCAL_AMOUNT).setData(
+                QtCore.Qt.ItemDataRole.UserRole,
+                FloatWithPrecision(entry.exchange_rate.rate * entry.amount)
+            )
+        # !for
+        offset = len(voucher.debit_entries)
+        for i, entry in enumerate(voucher.credit_entries):
+            r = i + offset
+            self.table.item(r, COLUMN_BRIEF).setText(entry.brief)
+            self.table.item(r, COLUMN_ACCOUNT).setText(entry.account.qualname)
+            self.table.item(r, COLUMN_ACCOUNT).setData(
+                QtCore.Qt.ItemDataRole.UserRole,
+                entry.account
+            )
+            self.table.item(r, COLUMN_CREDIT_CURRENCY_AMOUNT).setText(str(FloatWithPrecision(entry.amount)))
+            self.table.item(r, COLUMN_CREDIT_CURRENCY_AMOUNT).setData(
+                QtCore.Qt.ItemDataRole.UserRole,
+                FloatWithPrecision(entry.amount)
+            )
+            self.table.item(r, COLUMN_CURRENCY).setText(entry.account.currency.name)
+            self.table.item(r, COLUMN_CURRENCY).setData(
+                QtCore.Qt.ItemDataRole.UserRole,
+                entry.account.currency
+            )
+            self.table.item(r, COLUMN_EXCHANGE_RATE).setText(str(FloatWithPrecision(entry.exchange_rate.rate)))
+            self.table.item(r, COLUMN_EXCHANGE_RATE).setData(
+                QtCore.Qt.ItemDataRole.UserRole,
+                entry.exchange_rate
+            )
+            self.table.item(r, COLUMN_CREDIT_LOCAL_AMOUNT).setText(
+                str(FloatWithPrecision(entry.exchange_rate.rate * entry.amount)))
+            self.table.item(r, COLUMN_CREDIT_LOCAL_AMOUNT).setData(
+                QtCore.Qt.ItemDataRole.UserRole,
+                FloatWithPrecision(entry.exchange_rate.rate * entry.amount)
+            )
+        # !for
+
+    def close(self):
+        super().close()
+
+    def timerEvent(self, *args, **kwargs):
+        super().timerEvent(*args, **kwargs)
+        self.refresh()
+
+    def on_modificationChanged(self):
+        self.action_save.setEnabled(True)
+
+    def on_actionSaveTriggered(self):
+        self.saveCurrentVoucher()
+
+    def on_actionVoidTriggered(self):
+        ret = QtWidgets.QMessageBox.question(None, "提示", "作废凭证将重排所有当月凭证号，是否作废该凭证?")
+        if ret == QtWidgets.QDialogButtonBox.Yes:
+            System.deleteVoucher(self.vouchers[self.index_current].number)
+            self.vouchers.pop(self.index_current)
+            for i, v in enumerate(self.vouchers):
+                System.changeVoucherNumber(
+                    v.number,
+                    f"{self.date_month.strftime('%Y-%m')}/{i + 1:04d}"
+                )
+
+            self.vouchers = System.vouchers(
+                lambda v: first_day_of_month(self.date_month) <= v.date and
+                          last_day_of_month(self.date_month) >= v.date
+            )
+            self.index_current = min(self.index_current, len(self.vouchers) - 1)
+            self.updateUI()
+
+    def on_actionForwardTriggered(self):
+        if not self.saveCurrentVoucher():
+            return
+        if self.index_current + 1 >= len(self.vouchers):
+            # 新增凭证
+            ret = QtWidgets.QMessageBox.question(None, "提示", "已经是最末张了，是否添加新的凭证?")
+            if ret == QtWidgets.QMessageBox.Yes:
+                date = datetime.date(
+                    self.de.date().year(),
+                    self.de.date().month(),
+                    self.de.date().day()
+                )
+                #
+                voucher = System.createVoucher(
+                    number=f"{self.date_month.strftime('%Y-%m')}/{len(self.vouchers) + 1:04d}",
+                    date=date,
+                    note=""
+                )
+                self.vouchers.append(voucher)
+                self.index_current = len(self.vouchers) - 1
+                self.updateUI()
+            else:
+                return
+        else:
+            # 下一个凭证
+            self.index_current += 1
+            self.updateUI()
+
+    def on_actionBackTriggered(self):
+        if self.saveCurrentVoucher():
+            self.index_current -= 1
+            self.updateUI()
+
+    def on_actionFirstTriggered(self):
+        if self.saveCurrentVoucher():
+            self.index_current = 0
+            self.updateUI()
+
+    def on_actionLastTriggered(self):
+        if self.saveCurrentVoucher():
+            self.index_current = len(self.vouchers) - 1
+            self.updateUI()
