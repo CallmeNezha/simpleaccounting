@@ -606,20 +606,36 @@ class VoucherEditDialog(CustomQDialog):
                 QtCore.Qt.ItemDataRole.UserRole,
                 entry.account
             )
+            self.table.item(r, COLUMN_ACCOUNT).setData(
+                QtCore.Qt.ItemDataRole.StatusTipRole,
+                datetime.datetime.now()
+            )
             self.table.item(r, COLUMN_DEBIT_CURRENCY_AMOUNT).setText(str(FloatWithPrecision(entry.amount)))
             self.table.item(r, COLUMN_DEBIT_CURRENCY_AMOUNT).setData(
                 QtCore.Qt.ItemDataRole.UserRole,
                 FloatWithPrecision(entry.amount)
+            )
+            self.table.item(r, COLUMN_DEBIT_CURRENCY_AMOUNT).setData(
+                QtCore.Qt.ItemDataRole.StatusTipRole,
+                datetime.datetime.now()
             )
             self.table.item(r, COLUMN_CURRENCY).setText(entry.account.currency.name)
             self.table.item(r, COLUMN_CURRENCY).setData(
                 QtCore.Qt.ItemDataRole.UserRole,
                 entry.account.currency
             )
+            self.table.item(r, COLUMN_CURRENCY).setData(
+                QtCore.Qt.ItemDataRole.StatusTipRole,
+                datetime.datetime.now()
+            )
             self.table.item(r, COLUMN_EXCHANGE_RATE).setText(str(FloatWithPrecision(entry.exchange_rate.rate)))
             self.table.item(r, COLUMN_EXCHANGE_RATE).setData(
                 QtCore.Qt.ItemDataRole.UserRole,
                 entry.exchange_rate
+            )
+            self.table.item(r, COLUMN_EXCHANGE_RATE).setData(
+                QtCore.Qt.ItemDataRole.StatusTipRole,
+                datetime.datetime.now()
             )
             self.table.item(r, COLUMN_DEBIT_LOCAL_AMOUNT).setText(
                 str(FloatWithPrecision(entry.exchange_rate.rate * entry.amount)))
@@ -637,20 +653,36 @@ class VoucherEditDialog(CustomQDialog):
                 QtCore.Qt.ItemDataRole.UserRole,
                 entry.account
             )
+            self.table.item(r, COLUMN_ACCOUNT).setData(
+                QtCore.Qt.ItemDataRole.StatusTipRole,
+                datetime.datetime.now()
+            )
             self.table.item(r, COLUMN_CREDIT_CURRENCY_AMOUNT).setText(str(FloatWithPrecision(entry.amount)))
             self.table.item(r, COLUMN_CREDIT_CURRENCY_AMOUNT).setData(
                 QtCore.Qt.ItemDataRole.UserRole,
                 FloatWithPrecision(entry.amount)
+            )
+            self.table.item(r, COLUMN_CREDIT_CURRENCY_AMOUNT).setData(
+                QtCore.Qt.ItemDataRole.StatusTipRole,
+                datetime.datetime.now()
             )
             self.table.item(r, COLUMN_CURRENCY).setText(entry.account.currency.name)
             self.table.item(r, COLUMN_CURRENCY).setData(
                 QtCore.Qt.ItemDataRole.UserRole,
                 entry.account.currency
             )
+            self.table.item(r, COLUMN_CURRENCY).setData(
+                QtCore.Qt.ItemDataRole.StatusTipRole,
+                datetime.datetime.now()
+            )
             self.table.item(r, COLUMN_EXCHANGE_RATE).setText(str(FloatWithPrecision(entry.exchange_rate.rate)))
             self.table.item(r, COLUMN_EXCHANGE_RATE).setData(
                 QtCore.Qt.ItemDataRole.UserRole,
                 entry.exchange_rate
+            )
+            self.table.item(r, COLUMN_EXCHANGE_RATE).setData(
+                QtCore.Qt.ItemDataRole.StatusTipRole,
+                datetime.datetime.now()
             )
             self.table.item(r, COLUMN_CREDIT_LOCAL_AMOUNT).setText(
                 str(FloatWithPrecision(entry.exchange_rate.rate * entry.amount)))
