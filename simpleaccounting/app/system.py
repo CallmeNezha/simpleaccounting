@@ -25,7 +25,7 @@ from simpleaccounting.tools.mymath import FloatWithPrecision
 from simpleaccounting.ffdb import FFDB
 from simpleaccounting.defaults import DEFAULT_ACCOUNTS_2023
 from simpleaccounting.tools.dateutil import last_day_of_previous_month, first_day_of_month, last_day_of_month, \
-    month_of_date, first_day_of_year, last_day_of_year
+    month_of_date, first_day_of_year, last_day_of_year, first_day_of_next_month
 
 
 # exceptions
@@ -233,6 +233,12 @@ class System:
     def meta() -> Meta:
         with FFDB.db_session:
             return Meta(FFDB.db.MetaData.get())
+
+    @staticmethod
+    def forwardToNextMonth():
+        with FFDB.db_session:
+            meta = FFDB.db.MetaData.select().first()
+            meta.month_until = month_of_date(first_day_of_next_month(meta.month_until))
 
     @staticmethod
     def createAccount(parent_code: str,
@@ -658,7 +664,7 @@ class System:
                 voucher = FFDB.db.Voucher(number=year.strftime('%Y/YECF'),
                                               date=datetime.date(year.year + 1, 1, 1),
                                               note="Year End Carry Forward",
-                                              category='年末结转')
+                                              category='年度结转')
 
             voucher.debit_entries.clear()
             voucher.credit_entries.clear()

@@ -92,7 +92,6 @@ class LoginDialog(CustomQDialog):
         layout.addWidget(self.btn_login, 0, 1)
         layout.addWidget(self.btn_register, 1, 1)
         layout.setColumnStretch(0, 10)
-        self.resize(600, -1)
 
     def updateUI(self):
         self.cb.blockSignals(True)

@@ -65,7 +65,6 @@ class BulletinBoardDialog(CustomQDialog):
         grid.addWidget(self.btn_voucher, 2, 1)
         grid.addWidget(self.btn_detailed_ledger, 3, 1)
         grid.setColumnStretch(0, 10)
-        self.resize(600, -1)
 
     def showAccountMgmtWindow(self):
         from simpleaccounting.widgets.account import AccountDialog
@@ -82,7 +81,6 @@ class BulletinBoardDialog(CustomQDialog):
     def showVoucherMgmtWindow(self):
         from simpleaccounting.widgets.voucher import VoucherDialog
         dialog = VoucherDialog()
-        dialog.resize(600, 300)
         dialog.exec_()
 
     def exportDetailedLedgerToExcel(self):

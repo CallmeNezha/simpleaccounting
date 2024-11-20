@@ -266,8 +266,9 @@ class VoucherTableWidget(QtWidgets.QTableWidget):
 
 class VoucherEditDialog(CustomQDialog):
 
-    def __init__(self, date_month: datetime.date, category):
+    def __init__(self, window_title, date_month: datetime.date, categories):
         super().__init__()
+        self.window_title = window_title
         self.setupUI()
         self.de.dateChanged.connect(lambda *args: self.action_save.setEnabled(True))
         self.table.tb_choose_account.clicked.connect(self.on_tbChooseAccountClicked)
@@ -276,14 +277,14 @@ class VoucherEditDialog(CustomQDialog):
             first_day_of_month(self.date_month),
             last_day_of_month(self.date_month)
         )
-        self.vouchers = self.selectVouchers(category)
+        self.vouchers = self.selectVouchers(categories)
         self.index_current = -1 if len(self.vouchers) == 0 else 0
         self._readonly = False
         self.updateUI()
         self.startTimer(200)
 
     def setupUI(self):
-        self.setWindowTitle("凭证录入")
+        self.setWindowTitle(self.window_title)
         self.lbl_hint = QtWidgets.QLabel("点击下一张以录入下一张凭证")
         self.lbl_hint.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         font = self.font()
@@ -368,6 +369,7 @@ class VoucherEditDialog(CustomQDialog):
         self.action_save.setEnabled(not ro)
         self.action_forward.setEnabled(self.index_current < len(self.vouchers) - 1 if ro else True)
         self.table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers if ro else QtWidgets.QAbstractItemView.AllEditTriggers)
+        self.table.tb_choose_account.setEnabled(not ro)
 
     def isReadOnly(self) -> bool:
         return self._readonly
@@ -528,12 +530,12 @@ class VoucherEditDialog(CustomQDialog):
                 )
                 refreshLocalAmount(row)
 
-    def selectVouchers(self, category):
+    def selectVouchers(self, categories):
         """"""
         return System.vouchers(
             lambda v: first_day_of_month(self.date_month) <= v.date and
                       last_day_of_month(self.date_month) >= v.date and
-                      v.category == category
+                      v.category in categories
         )
 
     def voucherEntries(self) -> tuple[list[VoucherEntry], list[VoucherEntry]]:
@@ -571,7 +573,7 @@ class VoucherEditDialog(CustomQDialog):
     def updateUI(self):
         """"""
         # update title
-        self.setWindowTitle(f"凭证录入 ({self.index_current + 1}/{len(self.vouchers)})")
+        self.setWindowTitle(f"{self.window_title} ({self.index_current + 1}/{len(self.vouchers)})")
         # enable/disable actions
         self.action_back.setEnabled(self.index_current > 0)
         self.action_forward.setEnabled(self.index_current < len(self.vouchers) - 1 if self.isReadOnly() else True)
