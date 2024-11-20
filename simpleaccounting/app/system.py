@@ -554,7 +554,7 @@ class System:
             if sum_debit != sum_credit:
                 raise IllegalOperation('A3.2/2')
 
-        if not voucher_number.endswith('/MECF'):
+        if not voucher_number.endswith(('/MECF', '/YECF')):
             System.updateMonthEndCarryForwardVoucher(voucher.date)
             System.updateYearEndCarryForwardVoucher(voucher.date)
 

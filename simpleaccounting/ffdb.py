@@ -123,60 +123,60 @@ class FFDB:
             details = Required(str)
 
 
-        commited_cache = defaultdict(dict)
+        # commited_cache = defaultdict(dict)
 
         # Generic function to attach event hooks to all entities
-        def attach_logging_hooks(db):
-
-            import types
-
-            for _, entity in db.entities.items():
-                # Hook for insert
-                def details(instance):
-                    return ','.join(f"{attr.name}={getattr(instance, attr.name)!r}" for attr in instance._attrs_ if attr.is_basic)
-
-                def log_insert(instance):
-                    if isinstance(instance, OperationLog):
-                        return
-                    operation_log = OperationLog(entity_name=instance.__class__.__name__, operation_type='INSERT',
-                                 entity_id=instance.id, timestamp=datetime.datetime.now(),
-                                 details=details(instance),
-                                 commited=True)
-                    operation_log.flush()
-
-                def log_update(instance):
-                    if isinstance(instance, OperationLog):
-                        return
-                    operation_log = OperationLog(entity_name=instance.__class__.__name__, operation_type='UPDATE',
-                                 entity_id=instance.id, timestamp=datetime.datetime.now(),
-                                 details=details(instance),
-                                 commited=True)
-                    operation_log.flush()
-
-                def log_before_delete(instance):
-                    if isinstance(instance, OperationLog):
-                        return
-                    operation_log = OperationLog(entity_name=instance.__class__.__name__, operation_type='DELETE',
-                                 entity_id=instance.id, timestamp=datetime.datetime.now(),
-                                 details=details(instance),
-                                 commited=False)
-                    operation_log.flush()
-                    commited_cache[instance.__class__.__name__][instance.id] = operation_log.id
-
-                def log_after_delete(instance):
-                    if isinstance(instance, OperationLog):
-                        return
-                    operation_log = OperationLog.get(id=commited_cache[instance.__class__.__name__][instance.id])
-                    operation_log.commited = True
-                    operation_log.flush()
-
-                entity.before_delete = log_before_delete
-                entity.after_delete = log_after_delete
-                entity.after_insert = log_insert
-                entity.after_update = log_update
-
-        # Attach the logging hooks
-        attach_logging_hooks(db)
+        # def attach_logging_hooks(db):
+        #
+        #     import types
+        #
+        #     for _, entity in db.entities.items():
+        #         # Hook for insert
+        #         def details(instance):
+        #             return ','.join(f"{attr.name}={getattr(instance, attr.name)!r}" for attr in instance._attrs_ if attr.is_basic)
+        #
+        #         def log_insert(instance):
+        #             if isinstance(instance, OperationLog):
+        #                 return
+        #             operation_log = OperationLog(entity_name=instance.__class__.__name__, operation_type='INSERT',
+        #                          entity_id=instance.id, timestamp=datetime.datetime.now(),
+        #                          details=details(instance),
+        #                          commited=True)
+        #             operation_log.flush()
+        #
+        #         def log_update(instance):
+        #             if isinstance(instance, OperationLog):
+        #                 return
+        #             operation_log = OperationLog(entity_name=instance.__class__.__name__, operation_type='UPDATE',
+        #                          entity_id=instance.id, timestamp=datetime.datetime.now(),
+        #                          details=details(instance),
+        #                          commited=True)
+        #             operation_log.flush()
+        #
+        #         def log_before_delete(instance):
+        #             if isinstance(instance, OperationLog):
+        #                 return
+        #             operation_log = OperationLog(entity_name=instance.__class__.__name__, operation_type='DELETE',
+        #                          entity_id=instance.id, timestamp=datetime.datetime.now(),
+        #                          details=details(instance),
+        #                          commited=False)
+        #             operation_log.flush()
+        #             commited_cache[instance.__class__.__name__][instance.id] = operation_log.id
+        #
+        #         def log_after_delete(instance):
+        #             if isinstance(instance, OperationLog):
+        #                 return
+        #             operation_log = OperationLog.get(id=commited_cache[instance.__class__.__name__][instance.id])
+        #             operation_log.commited = True
+        #             operation_log.flush()
+        #
+        #         entity.before_delete = log_before_delete
+        #         entity.after_delete = log_after_delete
+        #         entity.after_insert = log_insert
+        #         entity.after_update = log_update
+        #
+        # # Attach the logging hooks
+        # attach_logging_hooks(db)
 
         db.bind(provider='sqlite', filename=str(filename), create_db=True)
         db.generate_mapping(create_tables=True)

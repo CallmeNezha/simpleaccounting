@@ -266,7 +266,7 @@ class VoucherTableWidget(QtWidgets.QTableWidget):
 
 class VoucherEditDialog(CustomQDialog):
 
-    def __init__(self, date_month: datetime.date):
+    def __init__(self, date_month: datetime.date, category):
         super().__init__()
         self.setupUI()
         self.de.dateChanged.connect(lambda *args: self.action_save.setEnabled(True))
@@ -276,8 +276,9 @@ class VoucherEditDialog(CustomQDialog):
             first_day_of_month(self.date_month),
             last_day_of_month(self.date_month)
         )
-        self.vouchers = self.accountingVouchers()
+        self.vouchers = self.selectVouchers(category)
         self.index_current = -1 if len(self.vouchers) == 0 else 0
+        self._readonly = False
         self.updateUI()
         self.startTimer(200)
 
@@ -357,6 +358,19 @@ class VoucherEditDialog(CustomQDialog):
         self.stack.addWidget(self.lbl_hint)
         self.stack.addWidget(self.table)
         vbox.addWidget(self.stack)
+
+    def setReadOnly(self, ro: bool):
+        self._readonly = ro
+        self.de.setEnabled(not ro)
+        self.action_insert_row_last.setEnabled(not ro)
+        self.action_void.setEnabled(not ro)
+        self.action_remove_current_row.setEnabled(not ro)
+        self.action_save.setEnabled(not ro)
+        self.action_forward.setEnabled(self.index_current < len(self.vouchers) - 1 if ro else True)
+        self.table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers if ro else QtWidgets.QAbstractItemView.AllEditTriggers)
+
+    def isReadOnly(self) -> bool:
+        return self._readonly
 
     def printVoucher(self):
         print("打印凭证")
@@ -514,12 +528,12 @@ class VoucherEditDialog(CustomQDialog):
                 )
                 refreshLocalAmount(row)
 
-    def accountingVouchers(self):
+    def selectVouchers(self, category):
         """"""
         return System.vouchers(
             lambda v: first_day_of_month(self.date_month) <= v.date and
                       last_day_of_month(self.date_month) >= v.date and
-                      v.category == '记账'
+                      v.category == category
         )
 
     def voucherEntries(self) -> tuple[list[VoucherEntry], list[VoucherEntry]]:
@@ -560,6 +574,7 @@ class VoucherEditDialog(CustomQDialog):
         self.setWindowTitle(f"凭证录入 ({self.index_current + 1}/{len(self.vouchers)})")
         # enable/disable actions
         self.action_back.setEnabled(self.index_current > 0)
+        self.action_forward.setEnabled(self.index_current < len(self.vouchers) - 1 if self.isReadOnly() else True)
         self.action_first.setEnabled(self.index_current > 0)
         self.action_last.setEnabled(self.index_current < len(self.vouchers) - 1)
         for a in [self.action_print, self.action_insert_row_last,
@@ -667,7 +682,7 @@ class VoucherEditDialog(CustomQDialog):
                     f"{self.date_month.strftime('%Y-%m')}/{i + 1:04d}"
                 )
 
-            self.vouchers = self.accountingVouchers()
+            self.vouchers = self.selectVouchers()
             self.index_current = min(self.index_current, len(self.vouchers) - 1)
             self.updateUI()
 
@@ -675,25 +690,28 @@ class VoucherEditDialog(CustomQDialog):
         if not self.saveCurrentVoucher():
             return
         if self.index_current + 1 >= len(self.vouchers):
-            # 新增凭证
-            ret = QtWidgets.QMessageBox.question(None, "提示", "已经是最末张了，是否添加新的凭证?")
-            if ret == QtWidgets.QMessageBox.Yes:
-                date = datetime.date(
-                    self.de.date().year(),
-                    self.de.date().month(),
-                    self.de.date().day()
-                )
-                #
-                voucher = System.createVoucher(
-                    number=f"{self.date_month.strftime('%Y-%m')}/{len(self.vouchers) + 1:04d}",
-                    date=date,
-                    note=""
-                )
-                self.vouchers.append(voucher)
-                self.index_current = len(self.vouchers) - 1
-                self.updateUI()
-            else:
+            if self.isReadOnly():
                 return
+            else:
+                # 新增凭证
+                ret = QtWidgets.QMessageBox.question(None, "提示", "已经是最末张了，是否添加新的凭证?")
+                if ret == QtWidgets.QMessageBox.Yes:
+                    date = datetime.date(
+                        self.de.date().year(),
+                        self.de.date().month(),
+                        self.de.date().day()
+                    )
+                    #
+                    voucher = System.createVoucher(
+                        number=f"{self.date_month.strftime('%Y-%m')}/{len(self.vouchers) + 1:04d}",
+                        date=date,
+                        note=""
+                    )
+                    self.vouchers.append(voucher)
+                    self.index_current = len(self.vouchers) - 1
+                    self.updateUI()
+                else:
+                    return
         else:
             # 下一个凭证
             self.index_current += 1

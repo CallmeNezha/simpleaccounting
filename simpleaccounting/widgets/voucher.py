@@ -45,21 +45,17 @@ class VoucherDialog(CustomQDialog):
         self.label_month_ending_voucher_state = QtWidgets.QLabel("无")
         self.label_month_ending_voucher_state.setStyleSheet('color: red;')
         self.label_month_ending_voucher_state.setFont(font)
-        self.label_month_ending_balance = QtWidgets.QLabel("不平衡")
-        self.label_month_ending_balance.setStyleSheet('color: red;')
-        self.label_month_ending_balance.setFont(font)
 
         gbox = QtWidgets.QGroupBox("本月信息")
         form = QtWidgets.QFormLayout(gbox)
         form.addRow("凭证数", self.label_voucher_count)
         form.addRow("结转凭证", self.label_month_ending_voucher_state)
-        form.addRow("结转试算", self.label_month_ending_balance)
 
         self.button_entry = QtWidgets.QPushButton("（一）凭证录入")
         self.button_entry.clicked.connect(self.on_buttonEntryClicked)
 
-        self.button_closing_voucher = QtWidgets.QPushButton("（二）结转凭证")
-        # self.button_closing_voucher.clicked.connect(self.on_buttonClosingBalanceClicked)
+        self.button_month_end_carry_forward_voucher = QtWidgets.QPushButton("（二）月末结转凭证")
+        self.button_month_end_carry_forward_voucher.clicked.connect(self.on_buttonMECFVClicked)
 
         self.button_closing_balance = QtWidgets.QPushButton("（三）进入下月")
         # self.button_closing_balance.clicked.connect(self.on_buttonClosingClicked)
@@ -69,7 +65,7 @@ class VoucherDialog(CustomQDialog):
 
         vbox = QtWidgets.QVBoxLayout()
         vbox.addWidget(self.button_entry)
-        vbox.addWidget(self.button_closing_voucher)
+        vbox.addWidget(self.button_month_end_carry_forward_voucher)
         vbox.addWidget(self.button_closing_balance)
         vbox.addStretch(10)
         vbox.addWidget(self.button_view)
@@ -101,12 +97,22 @@ class VoucherDialog(CustomQDialog):
         item = self.list_month.currentItem()
         if not item:
             return
-
-        date = item.data(QtCore.Qt.UserRole)
-        dialog = VoucherEditDialog(date)
+        date = item.data(QtCore.Qt.ItemDataRole.UserRole)
+        dialog = VoucherEditDialog(date, '记账')
         dialog.resize(1200, 600)
         dialog.exec_()
         self.on_listMonthCurrentChanged()
+
+    def on_buttonMECFVClicked(self):
+        item = self.list_month.currentItem()
+        if not item:
+            return
+        date = item.data(QtCore.Qt.ItemDataRole.UserRole)
+        dialog = VoucherEditDialog(date, '月末结转')
+        dialog.resize(1200, 600)
+        dialog.setReadOnly(True)
+        dialog.exec_()
+
 
     # def on_buttonViewClicked(self):
     #
@@ -255,37 +261,3 @@ class VoucherDialog(CustomQDialog):
         self.label_month_ending_voucher_state.setStyleSheet('color: green;' if len(vouchers) > 0 else 'color: red;')
         # !with
 
-        # ...
-        # self.label_month_ending_balance.setText("平衡" if balanced else "不平衡")
-        # self.label_month_ending_balance.setStyleSheet('color: green;' if balanced else 'color: red;')
-
-        # with FFDB.db_session:
-        #     date_until = FFDB.db.MetaData.select().first().date_until
-        #     accounting = date_until.year == date.year and date_until.month == date.month
-        #     self.button_entry.setEnabled(accounting)
-        #     self.button_closing_voucher.setEnabled(accounting)
-        #     self.button_closing_balance.setEnabled(accounting)
-
-    # def on_buttonClosingBalanceClicked(self):
-    #     item = self.list_month.currentItem()
-    #     if not item:
-    #         return
-    #
-    #     date = item.data(QtCore.Qt.ItemDataRole.UserRole)
-    #     dialog = VoucherMonthClosingEntryDialog(date)
-    #     dialog.resize(1200, 600)
-    #     dialog.exec_()
-    #     self.on_listMonthCurrentChanged()
-    #
-    # def on_buttonClosingClicked(self):
-    #     if self.label_month_ending_balance.text() == '平衡':
-    #         ret = QtWidgets.QMessageBox.question(None, "确认", "确认进入下一个会计周期？本月凭证将全部锁定。")
-    #         if ret == QtWidgets.QMessageBox.StandardButton.Yes:
-    #             item = self.list_month.currentItem()
-    #             if not item:
-    #                 return
-    #             date: datetime.date = item.data(QtCore.Qt.ItemDataRole.UserRole)
-    #             month_end_closing(date.year, date.month)
-    #             self.updateUI()
-    #     else:
-    #         QtWidgets.QMessageBox.critical(None, "错误", "结转试算不平衡，无法进入下一个会计周期。")
