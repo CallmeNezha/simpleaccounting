@@ -411,6 +411,22 @@ class VoucherEditDialog(CustomQDialog):
                 QtWidgets.QMessageBox.critical(None, "保存失败", f"错误代码 {e.args[0]}：借贷试算平衡。")
             return False
 
+    def refreshDebitCreditTotal(self):
+        debit_total = FloatWithPrecision(0.0)
+        credit_total = FloatWithPrecision(0.0)
+        for row in range(self.table.rowCount() - 1):
+            debit_currency_amount = self.table.item(row, COLUMN_DEBIT_LOCAL_AMOUNT).data(QtCore.Qt.ItemDataRole.UserRole)
+            credit_currency_amount = self.table.item(row, COLUMN_CREDIT_LOCAL_AMOUNT).data(QtCore.Qt.ItemDataRole.UserRole)
+            if debit_currency_amount:
+                debit_total += debit_currency_amount
+            if credit_currency_amount:
+                credit_total += credit_currency_amount
+        # 1for
+        self.table.item(self.table.rowCount() - 1, COLUMN_DEBIT_LOCAL_AMOUNT).setText(str(debit_total))
+        self.table.item(self.table.rowCount() - 1, COLUMN_DEBIT_LOCAL_AMOUNT).setData(QtCore.Qt.ItemDataRole.UserRole, debit_total)
+        self.table.item(self.table.rowCount() - 1, COLUMN_CREDIT_LOCAL_AMOUNT).setText(str(credit_total))
+        self.table.item(self.table.rowCount() - 1, COLUMN_CREDIT_LOCAL_AMOUNT).setData(QtCore.Qt.ItemDataRole.UserRole, credit_total)
+
     def refresh(self):
 
         def isRefreshNeeded(item) -> bool:
@@ -456,23 +472,8 @@ class VoucherEditDialog(CustomQDialog):
                 )
                 setDirty(self.table.item(row, COLUMN_CREDIT_LOCAL_AMOUNT))
             #
-            refreshDebitCreditTotal()
+            self.refreshDebitCreditTotal()
 
-        def refreshDebitCreditTotal():
-            debit_total = FloatWithPrecision(0.0)
-            credit_total = FloatWithPrecision(0.0)
-            for row in range(self.table.rowCount() - 1):
-                debit_currency_amount = self.table.item(row, COLUMN_DEBIT_LOCAL_AMOUNT).data(QtCore.Qt.ItemDataRole.UserRole)
-                credit_currency_amount = self.table.item(row, COLUMN_CREDIT_LOCAL_AMOUNT).data(QtCore.Qt.ItemDataRole.UserRole)
-                if debit_currency_amount:
-                    debit_total += debit_currency_amount
-                if credit_currency_amount:
-                    credit_total += credit_currency_amount
-            # 1for
-            self.table.item(self.table.rowCount() - 1, COLUMN_DEBIT_LOCAL_AMOUNT).setText(str(debit_total))
-            self.table.item(self.table.rowCount() - 1, COLUMN_DEBIT_LOCAL_AMOUNT).setData(QtCore.Qt.ItemDataRole.UserRole, debit_total)
-            self.table.item(self.table.rowCount() - 1, COLUMN_CREDIT_LOCAL_AMOUNT).setText(str(credit_total))
-            self.table.item(self.table.rowCount() - 1, COLUMN_CREDIT_LOCAL_AMOUNT).setData(QtCore.Qt.ItemDataRole.UserRole, credit_total)
 
         for row in range(self.table.rowCount()):
             if isRefreshNeeded(self.table.item(row, COLUMN_BRIEF)):
@@ -579,9 +580,10 @@ class VoucherEditDialog(CustomQDialog):
         self.action_forward.setEnabled(self.index_current < len(self.vouchers) - 1 if self.isReadOnly() else True)
         self.action_first.setEnabled(self.index_current > 0)
         self.action_last.setEnabled(self.index_current < len(self.vouchers) - 1)
-        for a in [self.action_print, self.action_insert_row_last,
+        for a in [self.action_insert_row_last,
                   self.action_save, self.action_void]:
-            a.setEnabled(self.index_current != -1)
+            a.setEnabled(self.index_current != -1 and not self.isReadOnly())
+        self.action_print.setEnabled(self.index_current != -1)
         # change visible widget
         if self.index_current != -1:
             self.stack.setCurrentWidget(self.table)
@@ -606,36 +608,20 @@ class VoucherEditDialog(CustomQDialog):
                 QtCore.Qt.ItemDataRole.UserRole,
                 entry.account
             )
-            self.table.item(r, COLUMN_ACCOUNT).setData(
-                QtCore.Qt.ItemDataRole.StatusTipRole,
-                datetime.datetime.now()
-            )
             self.table.item(r, COLUMN_DEBIT_CURRENCY_AMOUNT).setText(str(FloatWithPrecision(entry.amount)))
             self.table.item(r, COLUMN_DEBIT_CURRENCY_AMOUNT).setData(
                 QtCore.Qt.ItemDataRole.UserRole,
                 FloatWithPrecision(entry.amount)
-            )
-            self.table.item(r, COLUMN_DEBIT_CURRENCY_AMOUNT).setData(
-                QtCore.Qt.ItemDataRole.StatusTipRole,
-                datetime.datetime.now()
             )
             self.table.item(r, COLUMN_CURRENCY).setText(entry.account.currency.name)
             self.table.item(r, COLUMN_CURRENCY).setData(
                 QtCore.Qt.ItemDataRole.UserRole,
                 entry.account.currency
             )
-            self.table.item(r, COLUMN_CURRENCY).setData(
-                QtCore.Qt.ItemDataRole.StatusTipRole,
-                datetime.datetime.now()
-            )
             self.table.item(r, COLUMN_EXCHANGE_RATE).setText(str(FloatWithPrecision(entry.exchange_rate.rate)))
             self.table.item(r, COLUMN_EXCHANGE_RATE).setData(
                 QtCore.Qt.ItemDataRole.UserRole,
                 entry.exchange_rate
-            )
-            self.table.item(r, COLUMN_EXCHANGE_RATE).setData(
-                QtCore.Qt.ItemDataRole.StatusTipRole,
-                datetime.datetime.now()
             )
             self.table.item(r, COLUMN_DEBIT_LOCAL_AMOUNT).setText(
                 str(FloatWithPrecision(entry.exchange_rate.rate * entry.amount)))
@@ -653,36 +639,20 @@ class VoucherEditDialog(CustomQDialog):
                 QtCore.Qt.ItemDataRole.UserRole,
                 entry.account
             )
-            self.table.item(r, COLUMN_ACCOUNT).setData(
-                QtCore.Qt.ItemDataRole.StatusTipRole,
-                datetime.datetime.now()
-            )
             self.table.item(r, COLUMN_CREDIT_CURRENCY_AMOUNT).setText(str(FloatWithPrecision(entry.amount)))
             self.table.item(r, COLUMN_CREDIT_CURRENCY_AMOUNT).setData(
                 QtCore.Qt.ItemDataRole.UserRole,
                 FloatWithPrecision(entry.amount)
-            )
-            self.table.item(r, COLUMN_CREDIT_CURRENCY_AMOUNT).setData(
-                QtCore.Qt.ItemDataRole.StatusTipRole,
-                datetime.datetime.now()
             )
             self.table.item(r, COLUMN_CURRENCY).setText(entry.account.currency.name)
             self.table.item(r, COLUMN_CURRENCY).setData(
                 QtCore.Qt.ItemDataRole.UserRole,
                 entry.account.currency
             )
-            self.table.item(r, COLUMN_CURRENCY).setData(
-                QtCore.Qt.ItemDataRole.StatusTipRole,
-                datetime.datetime.now()
-            )
             self.table.item(r, COLUMN_EXCHANGE_RATE).setText(str(FloatWithPrecision(entry.exchange_rate.rate)))
             self.table.item(r, COLUMN_EXCHANGE_RATE).setData(
                 QtCore.Qt.ItemDataRole.UserRole,
                 entry.exchange_rate
-            )
-            self.table.item(r, COLUMN_EXCHANGE_RATE).setData(
-                QtCore.Qt.ItemDataRole.StatusTipRole,
-                datetime.datetime.now()
             )
             self.table.item(r, COLUMN_CREDIT_LOCAL_AMOUNT).setText(
                 str(FloatWithPrecision(entry.exchange_rate.rate * entry.amount)))
@@ -691,6 +661,7 @@ class VoucherEditDialog(CustomQDialog):
                 FloatWithPrecision(entry.exchange_rate.rate * entry.amount)
             )
         # !for
+        self.refreshDebitCreditTotal()
 
     def close(self):
         super().close()

@@ -681,7 +681,7 @@ class System:
                     if entry.account.code == '4103':
                         profit_remains += entry.amount
                 for entry in v.credit_entries:
-                    if entry.account.name == '4103':
+                    if entry.account.code == '4103':
                         profit_remains -= entry.amount
             # 1for
 
