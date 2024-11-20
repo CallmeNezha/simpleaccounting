@@ -90,3 +90,9 @@ def first_day_of_previous_month(date: datetime.date) -> datetime.date:
 def last_day_of_previous_month(date: datetime.date) -> datetime.date:
     """"""
     return last_day_of_month(first_day_of_previous_month(date))
+
+def first_day_of_year(date: datetime.date) -> datetime.date:
+    return datetime.date(date.year, 1, 1)
+
+def last_day_of_year(date: datetime.date) -> datetime.date:
+    return datetime.date(date.year, 12, 31)

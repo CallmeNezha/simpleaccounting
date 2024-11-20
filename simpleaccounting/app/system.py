@@ -24,7 +24,8 @@ from collections import defaultdict
 from simpleaccounting.tools.mymath import FloatWithPrecision
 from simpleaccounting.ffdb import FFDB
 from simpleaccounting.defaults import DEFAULT_ACCOUNTS_2023
-from simpleaccounting.tools.dateutil import last_day_of_previous_month, first_day_of_month, last_day_of_month, month_of_date
+from simpleaccounting.tools.dateutil import last_day_of_previous_month, first_day_of_month, last_day_of_month, \
+    month_of_date, first_day_of_year, last_day_of_year
 
 
 # exceptions
@@ -217,8 +218,12 @@ class System:
             for account in FFDB.db.Account.select():
                 account.qualname = System.__account_qualname(account)
 
+            # 月末结转，年末结转
             annual_profit = FFDB.db.Account.get(name='本年利润')
             annual_profit.currency = rmb
+
+            undistributed_profit = FFDB.db.Account.get(name='未分配利润')
+            undistributed_profit.currency = rmb
 
     @staticmethod
     def bindDatabase(filename: pathlib.Path):
@@ -551,6 +556,7 @@ class System:
 
         if not voucher_number.endswith('/MECF'):
             System.updateMonthEndCarryForwardVoucher(voucher.date)
+            System.updateYearEndCarryForwardVoucher(voucher.date)
 
     @staticmethod
     def increaseMRUAccount(account_code: str):
@@ -577,7 +583,8 @@ class System:
             if not end_voucher:
                 end_voucher = FFDB.db.Voucher(number=month.strftime('%Y-%m/MECF'),
                                               date=last_day_of_month(month),
-                                              note="Month End Carry Forward")
+                                              note="Month End Carry Forward",
+                                              category='月末结转')
 
             end_voucher.debit_entries.clear()
             end_voucher.credit_entries.clear()
@@ -599,7 +606,11 @@ class System:
             debit_entries = []
             credit_entries = []
 
-            query = FFDB.db.Voucher.select(lambda v: first_day_of_month(month) <= v.date and v.date <= last_day_of_month(month))
+            query = FFDB.db.Voucher.select(
+                lambda v: first_day_of_month(month) <= v.date and
+                          v.date <= last_day_of_month(month) and
+                          v.category == '记账'
+            )
 
             for v in query:
                 for entry in v.debit_entries:
@@ -624,17 +635,64 @@ class System:
             profit_remains = FloatWithPrecision(0.0)
             for code, amount in debit_credit_amounts.items():
                 if amount > FloatWithPrecision(0.0):
-                    credit_entries.append(VoucherEntry(account_code=code, amount=amount))
+                    credit_entries.append(VoucherEntry(account_code=code, amount=amount.value))
                 elif amount < FloatWithPrecision(0.0):
-                    debit_entries.append(VoucherEntry(account_code=code, amount=abs(amount)))
+                    debit_entries.append(VoucherEntry(account_code=code, amount=abs(amount.value)))
                 # !else
                 profit_remains += amount
             # !for
 
             if profit_remains > 0.0:
-                debit_entries.append(VoucherEntry(account_code='4103', amount=profit_remains))
+                debit_entries.append(VoucherEntry(account_code='4103', amount=profit_remains.value))
             elif profit_remains < 0.0:
-                credit_entries.append(VoucherEntry(account_code='4103', amount=abs(profit_remains)))
+                credit_entries.append(VoucherEntry(account_code='4103', amount=abs(profit_remains.value)))
             # !if
         System.updateDebitCreditEntries(end_voucher.number, debit_entries, credit_entries)
         return Voucher(end_voucher)
+
+    @staticmethod
+    def updateYearEndCarryForwardVoucher(year: datetime.date):
+        with FFDB.db_session:
+            voucher = FFDB.db.Voucher.get(number=year.strftime('%Y/YECF'))
+            if not voucher:
+                voucher = FFDB.db.Voucher(number=year.strftime('%Y/YECF'),
+                                              date=datetime.date(year.year + 1, 1, 1),
+                                              note="Year End Carry Forward",
+                                              category='年末结转')
+
+            voucher.debit_entries.clear()
+            voucher.credit_entries.clear()
+
+            debit_entries = []
+            credit_entries = []
+
+            profit_remains = FloatWithPrecision(0.0)
+            for v in FFDB.db.Voucher.select(
+                    lambda v: v.date >= first_day_of_year(year) and
+                              v.date <= last_day_of_year(year) and
+                              v.category == '月末结转'):
+                for entry in v.debit_entries:
+                    if entry.account.code == '4103':
+                        profit_remains += entry.amount
+                for entry in v.credit_entries:
+                    if entry.account.name == '4103':
+                        profit_remains -= entry.amount
+            # 1for
+
+            if profit_remains > 0.0:
+                debit_entries.append(VoucherEntry(account_code='4103', amount=profit_remains.value))
+                credit_entries.append(VoucherEntry(account_code='4104.06', amount=profit_remains.value))
+            elif profit_remains < 0.0:
+                credit_entries.append(VoucherEntry(account_code='4103', amount=abs(profit_remains.value)))
+                debit_entries.append(VoucherEntry(account_code='4104.06', amount=abs(profit_remains.value)))
+            # !if
+            System.updateDebitCreditEntries(voucher.number, debit_entries, credit_entries)
+
+        return Voucher(voucher)
+
+
+
+
+
+
+

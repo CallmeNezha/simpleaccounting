@@ -18,9 +18,10 @@ import datetime
 from qtpy import QtWidgets, QtCore, QtGui
 from simpleaccounting.app.system import System, VoucherEntry, Voucher, IllegalOperation
 from simpleaccounting.tools.mymath import FloatWithPrecision
-from simpleaccounting.widgets.qwidgets import CustomQDialog, HorizontalSpacer
+from simpleaccounting.widgets.qwidgets import CustomQDialog, HorizontalSpacer, CustomInputDialog
 from simpleaccounting.widgets.account import AccountActivateDialog
 from simpleaccounting.tools.dateutil import last_day_of_month, first_day_of_month
+from simpleaccounting.widgets.cascadewidget import CNCascadingListsWidget, CNCascadingListsWidgetItem
 
 COLUMNS = ["摘要", "科目名称", "借方币种金额", "贷方币种金额", "币种", "汇率", "借方金额", "贷方金额", "标签"]
 COLUMNS_WIDTH = [20, 20, 12, 12, 6, 8, 12, 12, 6]
@@ -269,15 +270,13 @@ class VoucherEditDialog(CustomQDialog):
         super().__init__()
         self.setupUI()
         self.de.dateChanged.connect(lambda *args: self.action_save.setEnabled(True))
+        self.table.tb_choose_account.clicked.connect(self.on_tbChooseAccountClicked)
         self.date_month = date_month
         self.de.setDateRange(
             first_day_of_month(self.date_month),
             last_day_of_month(self.date_month)
         )
-        self.vouchers = System.vouchers(
-            lambda v: first_day_of_month(self.date_month) <= v.date and
-                      last_day_of_month(self.date_month) >= v.date
-        )
+        self.vouchers = self.accountingVouchers()
         self.index_current = -1 if len(self.vouchers) == 0 else 0
         self.updateUI()
         self.startTimer(200)
@@ -372,6 +371,9 @@ class VoucherEditDialog(CustomQDialog):
             self.table.removeRow(row)
 
     def saveCurrentVoucher(self) -> bool:
+        if self.index_current == -1:
+            # no vouchers have been created yet
+            return True
         try:
             System.updateDebitCreditEntries(
                 self.vouchers[self.index_current].number,
@@ -511,6 +513,14 @@ class VoucherEditDialog(CustomQDialog):
                     None
                 )
                 refreshLocalAmount(row)
+
+    def accountingVouchers(self):
+        """"""
+        return System.vouchers(
+            lambda v: first_day_of_month(self.date_month) <= v.date and
+                      last_day_of_month(self.date_month) >= v.date and
+                      v.category == '记账'
+        )
 
     def voucherEntries(self) -> tuple[list[VoucherEntry], list[VoucherEntry]]:
         """
@@ -657,10 +667,7 @@ class VoucherEditDialog(CustomQDialog):
                     f"{self.date_month.strftime('%Y-%m')}/{i + 1:04d}"
                 )
 
-            self.vouchers = System.vouchers(
-                lambda v: first_day_of_month(self.date_month) <= v.date and
-                          last_day_of_month(self.date_month) >= v.date
-            )
+            self.vouchers = self.accountingVouchers()
             self.index_current = min(self.index_current, len(self.vouchers) - 1)
             self.updateUI()
 
@@ -706,3 +713,77 @@ class VoucherEditDialog(CustomQDialog):
         if self.saveCurrentVoucher():
             self.index_current = len(self.vouchers) - 1
             self.updateUI()
+
+    def on_tbChooseAccountClicked(self):
+        item = self.table.currentItem()
+        if not item:
+            return
+
+        def on_accept(account):
+            self.setCurrencyIfNot(account)
+            self.table.item(item.row(), COLUMN_ACCOUNT).setText(account.qualname)
+            self.table.item(item.row(), COLUMN_ACCOUNT).setData(
+                QtCore.Qt.ItemDataRole.UserRole,
+                account
+            )
+            self.table.item(item.row(), COLUMN_ACCOUNT).setData(
+                QtCore.Qt.ItemDataRole.StatusTipRole,
+                datetime.datetime.now()
+            )
+            return True
+
+        AccountSelectDialog(on_accept).exec_()
+
+    def setCurrencyIfNot(self, account) -> bool:
+        if not account.children and account.currency is None:
+            def setCurrency(currency_name):
+                System.setAccountCurrency(account.code, currency_name)
+                return True
+            AccountActivateDialog(account.name, account.code, setCurrency).exec_()
+        #
+        return False
+
+
+class AccountSelectDialog(CustomInputDialog):
+    def __init__(self, on_accept):
+        super().__init__()
+        self.setupUI()
+        self.on_accept = on_accept
+
+    def root(self) -> CNCascadingListsWidgetItem:
+        """"""
+        items = {}
+        root = CNCascadingListsWidgetItem("会计科目")
+        for account in System.accounts():
+            item = CNCascadingListsWidgetItem(f"{account.code} {account.name}")
+            item.setData(QtCore.Qt.ItemDataRole.UserRole, account)
+            items[account.code] = item
+        # 1for
+        for code, item in items.items():
+            account = item.data(QtCore.Qt.ItemDataRole.UserRole)
+            if account.parent:
+                items[account.parent.code].addChild(item)
+            else:
+                root.addChild(item)
+        # 1for
+        return root
+
+    def setupUI(self):
+        self.setWindowTitle("选择科目")
+        # 创建垂直布局
+        self.cascader = CNCascadingListsWidget(self)
+        self.cascader.setRoot(self.root())
+        self.cascader.searchbar.sigKeyEnterReturnPressed.connect(self.accept)
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.addWidget(self.cascader)
+        layout.addWidget(self.button_box)
+
+    def accept(self):
+        if not self.cascader.selectedItems():
+            return
+        # 1if
+        item = self.cascader.selectedItems()[0]
+        if account := item.data(QtCore.Qt.ItemDataRole.UserRole):
+            if self.on_accept(account):
+                super().accept()
+

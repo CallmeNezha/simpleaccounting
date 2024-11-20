@@ -247,11 +247,11 @@ class VoucherDialog(CustomQDialog):
         date_from = datetime.date(year=date.year, month=date.month, day=1)
         date_until = last_day_of_month(date_from)
 
-        vouchers = System.vouchers(lambda v: v.date >= date_from and v.date <= date_until)
+        vouchers = System.vouchers(lambda v: v.date >= date_from and v.date <= date_until and v.category == '记账')
         self.label_voucher_count.setText(str(len(vouchers)))
 
-        vouchers = System.vouchers(lambda v: v.date >= date_from and v.date <= date_until and v.category == '结转')
-        self.label_month_ending_voucher_state.setText('有' if len(vouchers) > 0 else '无')
+        vouchers = System.vouchers(lambda v: v.date >= date_from and v.date <= date_until and v.category == '月末结转')
+        self.label_month_ending_voucher_state.setText(str(len(vouchers)))
         self.label_month_ending_voucher_state.setStyleSheet('color: green;' if len(vouchers) > 0 else 'color: red;')
         # !with
 
