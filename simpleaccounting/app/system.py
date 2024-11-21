@@ -196,7 +196,7 @@ class System:
             FFDB.db.ExchangeRate(
                 currency=rmb,
                 rate=1.0,
-                effective_month=month
+                effective_month=datetime.date(1970, 1, 1)
             )
 
             for major_category, accounts in DEFAULT_ACCOUNTS_2023.items():
@@ -349,7 +349,11 @@ class System:
         with FFDB.db_session:
             if FFDB.db.Currency.get(name=name):
                 raise IllegalOperation('A2.2/2')
-            return Currency(FFDB.db.Currency(name=name))
+            currency = FFDB.db.Currency(name=name)
+            FFDB.db.ExchangeRate(currency=currency,
+                                 rate=1.0,
+                                 effective_month=datetime.date(1970, 1, 1))
+            return Currency(currency)
 
     @staticmethod
     def currencies() -> list[Currency]:
