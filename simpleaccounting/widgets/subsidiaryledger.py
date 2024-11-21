@@ -14,7 +14,7 @@
     limitations under the License.
 """
 
-
+import datetime
 from qtpy import QtWidgets, QtCore, QtGui
 from simpleaccounting.app.system import System
 from simpleaccounting.tools.dateutil import last_day_of_month, first_day_of_month
@@ -23,7 +23,7 @@ from simpleaccounting.tools.mymath import FloatWithPrecision
 
 
 COLUMNS = ["日期", "凭证记字号", "摘要", "科目名称", "借方币种金额", "贷方币种金额", "币种", "汇率", "借方金额", "贷方金额", "标签"]
-COLUMNS_WIDTH = [12, 12, 20, 20, 12, 12, 6, 8, 12, 12, 6]
+COLUMNS_WIDTH = [12, 20, 20, 20, 12, 12, 8, 8, 12, 12, 6]
 COLUMN_DATE= 0
 COLUMN_VOUCHER_NUMBER = 1
 COLUMN_BRIEF = 2
@@ -128,8 +128,6 @@ class SubsidiaryLedgerDialog(CustomQDialog):
         self.tb_choose_account = QtWidgets.QToolButton(self)
         self.tb_choose_account.setStyleSheet('background-color: transparent')
         self.tb_choose_account.setIcon(QtGui.QIcon(":/icons/FindNavigatorSearch(Color).svg"))
-        self.tb_choose_account.setParent(self.cbox_account)
-        self.tb_choose_account.move(self.cbox_account.rect().topRight() - QtCore.QPoint(60, 0))
         self.de_from = QtWidgets.QDateEdit(self)
         self.de_until = QtWidgets.QDateEdit(self)
         self.table = SubsidaryLedgerTableWidget()
@@ -141,6 +139,7 @@ class SubsidiaryLedgerDialog(CustomQDialog):
         container = QtWidgets.QWidget()
         hbox = QtWidgets.QHBoxLayout(container)
         hbox.addWidget(QtWidgets.QLabel("科目"))
+        hbox.addWidget(self.tb_choose_account)
         hbox.addWidget(self.cbox_account)
         hbox.addWidget(QtWidgets.QLabel("起始日期"))
         hbox.addWidget(self.de_from)
@@ -156,17 +155,58 @@ class SubsidiaryLedgerDialog(CustomQDialog):
         layout.addWidget(self.table)
 
     def updateUI(self):
-        self.de_from.setDateRange(
-            first_day_of_month(System.meta().month_from),
-            last_day_of_month(System.meta().month_until)
-        )
+        self.de_from.setDate(first_day_of_month(System.meta().month_from))
+        self.de_until.setDate(last_day_of_month(System.meta().month_until))
         self.cbox_account.clear()
         for account in System.accounts():
             self.cbox_account.addItem(f"{account.code} {account.name}", account)
         # 1for
-        self.tb_choose_account.move(self.cbox_account.rect().topRight() - QtCore.QPoint(60, 0))
-        self.tb_choose_account.resizeEvent()
 
     def on_actionPullTriggered(self):
-        ...
+        date_from = datetime.date(
+            self.de_from.date().year(),
+            self.de_from.date().month(),
+            self.de_from.date().day()
+        )
+        date_until = datetime.date(
+            self.de_until.date().year(),
+            self.de_until.date().month(),
+            self.de_until.date().day()
+        )
+        account = self.cbox_account.currentData(QtCore.Qt.ItemDataRole.UserRole)
+
+        entries = []
+        for v in System.vouchers(lambda v: v.date >= date_from and v.date <= date_until):
+            for entry in v.debit_entries:
+                if entry.account.code == account.code:
+                    entries.append(('debit', v, entry))
+                # 1if
+            # 1for
+            for entry in v.credit_entries:
+                if entry.account.code == account.code:
+                    entries.append(('credit', v, entry))
+                # 1if
+            # 1for
+        # 1for
+        self.table.setRowCount(len(entries))
+
+        for i, (direction, voucher, entry) in enumerate(entries):
+            self.table.item(i, COLUMN_DATE).setText(voucher.date.strftime('%Y-%m-%d'))
+            self.table.item(i, COLUMN_VOUCHER_NUMBER).setText(voucher.number)
+            self.table.item(i, COLUMN_BRIEF).setText(entry.brief)
+            self.table.item(i, COLUMN_ACCOUNT).setText(entry.account.qualname)
+            self.table.item(i, COLUMN_CURRENCY).setText(entry.account.currency.name)
+            self.table.item(i, COLUMN_EXCHANGE_RATE).setText(str(FloatWithPrecision(entry.exchange_rate.rate)))
+            if direction == 'debit':
+                self.table.item(i, COLUMN_DEBIT_CURRENCY_AMOUNT).setText(str(FloatWithPrecision(entry.amount)))
+                self.table.item(i, COLUMN_DEBIT_LOCAL_AMOUNT).setText(
+                    str(FloatWithPrecision(entry.amount * entry.exchange_rate.rate))
+                )
+            else:
+                self.table.item(i, COLUMN_CREDIT_CURRENCY_AMOUNT).setText(str(FloatWithPrecision(entry.amount)))
+                self.table.item(i, COLUMN_CREDIT_LOCAL_AMOUNT).setText(
+                    str(FloatWithPrecision(entry.amount * entry.exchange_rate.rate))
+                )
+
+
 

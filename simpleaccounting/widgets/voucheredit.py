@@ -24,7 +24,7 @@ from simpleaccounting.tools.dateutil import last_day_of_month, first_day_of_mont
 from simpleaccounting.widgets.cascadewidget import CNCascadingListsWidget, CNCascadingListsWidgetItem
 
 COLUMNS = ["摘要", "科目名称", "借方币种金额", "贷方币种金额", "币种", "汇率", "借方金额", "贷方金额", "标签"]
-COLUMNS_WIDTH = [20, 20, 12, 12, 6, 8, 12, 12, 6]
+COLUMNS_WIDTH = [20, 20, 12, 12, 8, 8, 12, 12, 6]
 COLUMN_BRIEF = 0
 COLUMN_ACCOUNT = 1
 COLUMN_DEBIT_CURRENCY_AMOUNT = 2
