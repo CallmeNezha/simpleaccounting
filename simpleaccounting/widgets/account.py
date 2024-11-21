@@ -341,5 +341,3 @@ class AccountDialog(CustomQDialog):
         dialog = AccountActivateDialog(account.name, account.code, activate)
         dialog.exec_()
 
-
-
