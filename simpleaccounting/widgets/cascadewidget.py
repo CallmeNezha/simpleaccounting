@@ -168,10 +168,11 @@ class CNCascadingListsWidget(QtWidgets.QWidget):
         self.titleLabel.installEventFilter(self)
         self.searchbar.installEventFilter(self)
         self.listWidget.installEventFilter(self)
+        self.searchbar.setFocus(QtCore.Qt.FocusReason.OtherFocusReason)
 
     def show(self):
         """Override show method to set user frequently used edit focused"""
-        self.searchbar.setFocus()
+        self.searchbar.setFocus(QtCore.Qt.FocusReason.PopupFocusReason)
         super().show()
 
     def mouseMoveEvent(self, event: QtGui.QMouseEvent):

@@ -101,8 +101,9 @@ class VoucherDialog(CustomQDialog):
         if not item:
             return
         date = item.data(QtCore.Qt.ItemDataRole.UserRole)
-        dialog = VoucherEditDialog(f'{date.strftime("%Y年%m")}月度凭证录入', date, ('记账',))
-        dialog.resize(1200, 600)
+        dialog = VoucherEditDialog(date, ('记账',))
+        dialog.setWindowTitle(f'凭证录入 - {date.strftime("%Y年%m月")}')
+        dialog.resize(1600, 600)
         dialog.exec_()
         self.on_listMonthCurrentChanged()
 
@@ -111,8 +112,9 @@ class VoucherDialog(CustomQDialog):
         if not item:
             return
         date = item.data(QtCore.Qt.ItemDataRole.UserRole)
-        dialog = VoucherEditDialog(f'{date.strftime("%Y年%m月")}结转凭证查看', date, ('月末结转', '年度结转'))
-        dialog.resize(1200, 600)
+        dialog = VoucherEditDialog(date, ('月末结转', '年度结转'))
+        dialog.setWindowTitle(f'结转凭证 - {date.strftime("%Y年%m月")}')
+        dialog.resize(1600, 600)
         dialog.setReadOnly(True)
         dialog.exec_()
 
@@ -120,8 +122,6 @@ class VoucherDialog(CustomQDialog):
         if QtWidgets.QMessageBox.Yes == QtWidgets.QMessageBox.question(None, "确认", "是否进入下一个账期"):
             System.forwardToNextMonth()
             self.updateUI()
-
-
 
     # def on_buttonViewClicked(self):
     #

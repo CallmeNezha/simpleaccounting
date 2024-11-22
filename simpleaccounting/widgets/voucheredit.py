@@ -15,6 +15,8 @@
 """
 
 import datetime
+import typing
+
 from qtpy import QtWidgets, QtCore, QtGui
 from simpleaccounting.app.system import System, VoucherEntry, Voucher, IllegalOperation
 from simpleaccounting.tools.mymath import FloatWithPrecision
@@ -47,6 +49,7 @@ class AccountItemDelegate(QtWidgets.QStyledItemDelegate):
     def createEditor(self, parent, option, index):
         comboBox = QtWidgets.QComboBox(parent)
         comboBox.setEditable(True)
+        comboBox.lineEdit().setAlignment(QtCore.Qt.AlignRight)
         for account in System.topMRUAccounts(20):
             comboBox.addItem(f"{account.name}")
         return comboBox
@@ -137,6 +140,7 @@ class MultiLineEditDelegate(QtWidgets.QStyledItemDelegate):
     def createEditor(self, parent, option, index):
         # 使用 QPlainTextEdit 作为编辑器
         editor = MultiLineEditDelegate.PlainTextEditWithEnter(parent)
+        editor.setLayoutDirection(QtCore.Qt.RightToLeft)
         return editor
 
     def setEditorData(self, editor, index):
@@ -191,8 +195,8 @@ class VoucherTableWidget(QtWidgets.QTableWidget):
         # !for
         if self.tb_choose_account.isVisible():
             rect = self.visualRect(self.currentIndex())
-            pos = (self.viewport().mapToParent(rect.bottomRight()) -
-                   QtCore.QPoint(self.tb_choose_account.width() * 2,
+            pos = (self.viewport().mapToParent(rect.bottomLeft()) -
+                   QtCore.QPoint(0,
                                  self.tb_choose_account.height() +
                                  (rect.height() - self.tb_choose_account.height()) // 2))
             self.tb_choose_account.move(pos)
@@ -209,8 +213,8 @@ class VoucherTableWidget(QtWidgets.QTableWidget):
                 self.tb_choose_account.show()
                 # move the helper tool button to correct position
                 rect = self.visualRect(index)
-                pos = (self.viewport().mapToParent(rect.bottomRight()) -
-                       QtCore.QPoint(self.tb_choose_account.width() * 2,
+                pos = (self.viewport().mapToParent(rect.bottomLeft()) -
+                       QtCore.QPoint(0,
                                      self.tb_choose_account.height() + (rect.height() - self.tb_choose_account.height()) // 2))
                 self.tb_choose_account.move(pos)
             else:
@@ -228,9 +232,12 @@ class VoucherTableWidget(QtWidgets.QTableWidget):
         for i in range(COLUMN_COUNT):
             item = QtWidgets.QTableWidgetItem()
             item.setFlags(QtCore.Qt.ItemIsSelectable)
-            item.setTextAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+            item.setTextAlignment(QtCore.Qt.AlignRight)
             item.setBackground(QtGui.QColor("#1e58ff"))
             item.setForeground(QtGui.QColor("#ffffff"))
+            font = item.font()
+            font.setBold(True)
+            item.setFont(font)
             self.setItem(row_last, i, item)
             if i == 0:
                 item.setText("合计")
@@ -241,10 +248,10 @@ class VoucherTableWidget(QtWidgets.QTableWidget):
         super().insertRow(row)
         for i in range(COLUMN_COUNT):
             item = QtWidgets.QTableWidgetItem()
-            if i in [COLUMN_DEBIT_CURRENCY_AMOUNT, COLUMN_CREDIT_CURRENCY_AMOUNT,
-                     COLUMN_DEBIT_LOCAL_AMOUNT, COLUMN_CREDIT_LOCAL_AMOUNT,
-                     COLUMN_CURRENCY, COLUMN_EXCHANGE_RATE]:
-                item.setTextAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+            if i in [COLUMN_CURRENCY]:
+                item.setTextAlignment(QtCore.Qt.AlignHCenter)
+            else:
+                item.setTextAlignment(QtCore.Qt.AlignRight)
             if i == COLUMN_ACCOUNT:
                 item.setForeground(QtGui.QBrush(QtGui.QColor(0, 0, 255)))
             #
@@ -266,9 +273,8 @@ class VoucherTableWidget(QtWidgets.QTableWidget):
 
 class VoucherEditDialog(CustomQDialog):
 
-    def __init__(self, window_title, date_month: datetime.date, categories):
+    def __init__(self, date_month: datetime.date, categories):
         super().__init__()
-        self.window_title = window_title
         self.setupUI()
         self.de.dateChanged.connect(lambda *args: self.action_save.setEnabled(True))
         self.table.tb_choose_account.clicked.connect(self.on_tbChooseAccountClicked)
@@ -278,23 +284,30 @@ class VoucherEditDialog(CustomQDialog):
             last_day_of_month(self.date_month)
         )
         self.vouchers = self.selectVouchers(categories)
+        self.categories = categories
         self.index_current = -1 if len(self.vouchers) == 0 else 0
         self._readonly = False
         self.updateUI()
         self.startTimer(200)
 
     def setupUI(self):
-        self.setWindowTitle(self.window_title)
         self.lbl_hint = QtWidgets.QLabel("点击下一张以录入下一张凭证")
         self.lbl_hint.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.lbl_page = QtWidgets.QLabel()
+        self.lbl_page.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         font = self.font()
         font.setBold(True)
+        self.lbl_page.setFont(font)
+        self.lbl_hint.setFont(font)
         self.de = QtWidgets.QDateEdit()
         self.de.setStyleSheet('color: blue;')
         self.de.setFont(font)
         self.lbl_voucher_number = QtWidgets.QLabel()
         self.lbl_voucher_number.setStyleSheet('color: blue;')
         self.lbl_voucher_number.setFont(font)
+        self.lbl_voucher_category = QtWidgets.QLabel()
+        self.lbl_voucher_category.setStyleSheet('color: blue;')
+        self.lbl_voucher_category.setFont(font)
         self.table = VoucherTableWidget()
         self.action_print = QtWidgets.QAction(QtGui.QIcon(":/icons/print.svg"), "打印", self)
         self.action_print.triggered.connect(self.printVoucher)
@@ -340,6 +353,7 @@ class VoucherEditDialog(CustomQDialog):
         self.tbar.addSeparator()
         self.tbar.addAction(self.action_first)
         self.tbar.addAction(self.action_back)
+        self.tbar.addWidget(self.lbl_page)
         self.tbar.addAction(self.action_forward)
         self.tbar.addAction(self.action_last)
         self.tbar.addSeparator()
@@ -350,6 +364,8 @@ class VoucherEditDialog(CustomQDialog):
         vbox.addWidget(self.tbar)
         hbox = QtWidgets.QHBoxLayout()
         hbox.addStretch(10)
+        hbox.addWidget(QtWidgets.QLabel("凭证类型"))
+        hbox.addWidget(self.lbl_voucher_category)
         hbox.addWidget(QtWidgets.QLabel("日期"))
         hbox.addWidget(self.de)
         hbox.addWidget(QtWidgets.QLabel("记字号"))
@@ -359,6 +375,15 @@ class VoucherEditDialog(CustomQDialog):
         self.stack.addWidget(self.lbl_hint)
         self.stack.addWidget(self.table)
         vbox.addWidget(self.stack)
+
+    def setCurrentVoucher(self, voucher_number: str):
+        index = next((i for i, v in enumerate(self.vouchers) if v.number == voucher_number), None)
+        if index:
+            self.index_current = index
+            self.updateUI()
+
+    def currentVoucher(self) -> typing.Optional[str]:
+        return self.vouchers[self.index_current].number if self.index_current != -1 else None
 
     def setReadOnly(self, ro: bool):
         self._readonly = ro
@@ -474,10 +499,9 @@ class VoucherEditDialog(CustomQDialog):
             #
             self.refreshDebitCreditTotal()
 
-
         for row in range(self.table.rowCount()):
             if isRefreshNeeded(self.table.item(row, COLUMN_BRIEF)):
-                ...
+                self.table.resizeRowsToContents()
 
             if isRefreshNeeded(self.table.item(row, COLUMN_ACCOUNT)):
                 account = self.table.item(row, COLUMN_ACCOUNT).data(QtCore.Qt.ItemDataRole.UserRole)
@@ -573,8 +597,7 @@ class VoucherEditDialog(CustomQDialog):
 
     def updateUI(self):
         """"""
-        # update title
-        self.setWindowTitle(f"{self.window_title} ({self.index_current + 1}/{len(self.vouchers)})")
+        self.lbl_page.setText(f"{self.index_current + 1}/{len(self.vouchers)}")
         # enable/disable actions
         self.action_back.setEnabled(self.index_current > 0)
         self.action_forward.setEnabled(self.index_current < len(self.vouchers) - 1 if self.isReadOnly() else True)
@@ -590,10 +613,13 @@ class VoucherEditDialog(CustomQDialog):
             voucher = self.vouchers[self.index_current]
             self.de.setDate(voucher.date)
             self.lbl_voucher_number.setText(voucher.number)
+            self.lbl_voucher_category.setText(voucher.category)
             self.loadVoucherIntoTable(voucher)
         else:
             self.stack.setCurrentWidget(self.lbl_hint)
             self.lbl_voucher_number.setText("")
+            self.lbl_voucher_category.setText("")
+            self.table.clear()
         #
         self.action_save.setEnabled(False)
 
@@ -662,6 +688,7 @@ class VoucherEditDialog(CustomQDialog):
             )
         # !for
         self.refreshDebitCreditTotal()
+        self.table.resizeRowsToContents()
 
     def close(self):
         super().close()
@@ -687,7 +714,7 @@ class VoucherEditDialog(CustomQDialog):
                     f"{self.date_month.strftime('%Y-%m')}/{i + 1:04d}"
                 )
 
-            self.vouchers = self.selectVouchers()
+            self.vouchers = self.selectVouchers(self.categories)
             self.index_current = min(self.index_current, len(self.vouchers) - 1)
             self.updateUI()
 
@@ -800,6 +827,7 @@ class AccountSelectDialog(CustomInputDialog):
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(self.cascader)
         layout.addWidget(self.button_box)
+        self.setTabOrder(self.cascader.searchbar, self.cascader.listWidget)
 
     def accept(self):
         if not self.cascader.selectedItems():

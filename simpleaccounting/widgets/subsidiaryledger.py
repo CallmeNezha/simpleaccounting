@@ -17,9 +17,11 @@
 import datetime
 from qtpy import QtWidgets, QtCore, QtGui
 from simpleaccounting.app.system import System
-from simpleaccounting.tools.dateutil import last_day_of_month, first_day_of_month
+from simpleaccounting.tools.dateutil import last_day_of_month, first_day_of_month, month_of_date
 from simpleaccounting.widgets.qwidgets import CustomQDialog, HorizontalSpacer
 from simpleaccounting.tools.mymath import FloatWithPrecision
+from simpleaccounting.tools import stringscores
+from simpleaccounting.widgets.voucheredit import VoucherEditDialog, AccountSelectDialog
 
 
 COLUMNS = ["日期", "凭证记字号", "摘要", "科目名称", "借方币种金额", "贷方币种金额", "币种", "汇率", "借方金额", "贷方金额", "标签"]
@@ -87,10 +89,16 @@ class SubsidaryLedgerTableWidget(QtWidgets.QTableWidget):
         super().insertRow(row)
         for i in range(COLUMN_COUNT):
             item = QtWidgets.QTableWidgetItem()
-            if i in [COLUMN_DEBIT_CURRENCY_AMOUNT, COLUMN_CREDIT_CURRENCY_AMOUNT,
-                     COLUMN_DEBIT_LOCAL_AMOUNT, COLUMN_CREDIT_LOCAL_AMOUNT,
-                     COLUMN_CURRENCY, COLUMN_EXCHANGE_RATE]:
-                item.setTextAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+            if i in [COLUMN_CURRENCY]:
+                item.setTextAlignment(QtCore.Qt.AlignHCenter)
+            else:
+                item.setTextAlignment(QtCore.Qt.AlignRight)
+            #
+            if i == COLUMN_VOUCHER_NUMBER:
+                font: QtGui.QFont = item.font()
+                font.setUnderline(True)
+                item.setFont(font)
+                item.setForeground(QtGui.QBrush(QtGui.QColor(0, 0, 255)))
             if i == COLUMN_ACCOUNT:
                 item.setForeground(QtGui.QBrush(QtGui.QColor(0, 0, 255)))
             #
@@ -114,10 +122,8 @@ class SubsidiaryLedgerDialog(CustomQDialog):
 
     def __init__(self):
         super().__init__()
-
         self.setupUI()
         self.updateUI()
-
 
     def setupUI(self):
         self.setWindowTitle("明细账")
@@ -125,16 +131,25 @@ class SubsidiaryLedgerDialog(CustomQDialog):
         self.cbox_account.setMinimumHeight(int(self.fontMetrics().height() * 1.8))
         self.cbox_account.setMinimumWidth(int(self.fontMetrics().horizontalAdvance('x' * 20)))
         self.cbox_account.setEditable(True)
+        self.cbox_account.lineEdit().editingFinished.connect(self.on_cbox_accountEditingFinished)
         self.tb_choose_account = QtWidgets.QToolButton(self)
         self.tb_choose_account.setStyleSheet('background-color: transparent')
         self.tb_choose_account.setIcon(QtGui.QIcon(":/icons/FindNavigatorSearch(Color).svg"))
+        self.tb_choose_account.clicked.connect(self.on_tb_chooseAccountTriggered)
         self.de_from = QtWidgets.QDateEdit(self)
         self.de_until = QtWidgets.QDateEdit(self)
         self.table = SubsidaryLedgerTableWidget()
+        self.table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+        self.table.itemDoubleClicked.connect(self.on_tableItemDoubleClicked)
         self.action_pull = QtWidgets.QAction(QtGui.QIcon(":/icons/persistenceEntity.svg"), "拉取", self)
         self.action_pull.triggered.connect(self.on_actionPullTriggered)
-
+        self.action_print = QtWidgets.QAction(QtGui.QIcon(":/icons/print.svg"), "打印", self)
+        self.action_print.triggered.connect(self.on_actionPrintTriggered)
+        self.action_print.setShortcut(QtGui.QKeySequence('Ctrl+P'))
+        self.action_print.setToolTip('Ctrl+P')
+        #
         self.tbar = QtWidgets.QToolBar(self)
+        self.tbar.addAction(self.action_print)
         self.tbar.addWidget(HorizontalSpacer())
         container = QtWidgets.QWidget()
         hbox = QtWidgets.QHBoxLayout(container)
@@ -163,6 +178,11 @@ class SubsidiaryLedgerDialog(CustomQDialog):
         # 1for
 
     def on_actionPullTriggered(self):
+        """"""
+        account = self.cbox_account.currentData(QtCore.Qt.UserRole)
+        if not account:
+            return
+
         date_from = datetime.date(
             self.de_from.date().year(),
             self.de_from.date().month(),
@@ -173,7 +193,9 @@ class SubsidiaryLedgerDialog(CustomQDialog):
             self.de_until.date().month(),
             self.de_until.date().day()
         )
-        account = self.cbox_account.currentData(QtCore.Qt.ItemDataRole.UserRole)
+
+        if date_from > date_until:
+            date_until, date_from = date_from, date_until
 
         entries = []
         for v in System.vouchers(lambda v: v.date >= date_from and v.date <= date_until):
@@ -193,6 +215,10 @@ class SubsidiaryLedgerDialog(CustomQDialog):
         for i, (direction, voucher, entry) in enumerate(entries):
             self.table.item(i, COLUMN_DATE).setText(voucher.date.strftime('%Y-%m-%d'))
             self.table.item(i, COLUMN_VOUCHER_NUMBER).setText(voucher.number)
+            self.table.item(i, COLUMN_VOUCHER_NUMBER).setData(
+                QtCore.Qt.UserRole,
+                voucher
+            )
             self.table.item(i, COLUMN_BRIEF).setText(entry.brief)
             self.table.item(i, COLUMN_ACCOUNT).setText(entry.account.qualname)
             self.table.item(i, COLUMN_CURRENCY).setText(entry.account.currency.name)
@@ -208,5 +234,50 @@ class SubsidiaryLedgerDialog(CustomQDialog):
                     str(FloatWithPrecision(entry.amount * entry.exchange_rate.rate))
                 )
 
+        self.table.resizeRowsToContents()
+        self.setWindowTitle(f"明细账 - {account.name } - {date_from.strftime('%Y年%m月%d日')}至{date_until.strftime('%Y年%m月%d日')}")
+
+    def on_cbox_accountEditingFinished(self):
+        editedText = self.cbox_account.lineEdit().text()
+        # To prevent the text entered in a QComboBox's QLineEdit from being added to the list of items
+        for i in reversed(range(self.cbox_account.count())):
+            if self.cbox_account.itemData(i, QtCore.Qt.UserRole) is None:
+                self.cbox_account.removeItem(i)
+        # 1To
+        accounts = [self.cbox_account.itemData(i, QtCore.Qt.UserRole) for i in range(self.cbox_account.count())]
+
+        rets = stringscores.findMatchingChoices(
+            editedText,
+            [f"{a.code} {a.name}" for a in accounts],
+            template='<b>{0}</b>',
+            valid_only=True,
+            sort=True
+        )
+        if rets:
+            name, named, _ = rets[0]
+            self.cbox_account.setCurrentText(name)
+
+    def on_tb_chooseAccountTriggered(self):
+        def on_accept(account):
+            accounts = [self.cbox_account.itemData(i, QtCore.Qt.UserRole) for i in range(self.cbox_account.count())]
+            index = next((i for i, a in enumerate(accounts) if a.code == account.code), None)
+            self.cbox_account.setCurrentIndex(index) if index != -1 else ...
+            return True
+        #
+        AccountSelectDialog(on_accept).exec_()
+
+    def on_tableItemDoubleClicked(self, item: QtWidgets.QTableWidgetItem):
+        if item.column() == COLUMN_VOUCHER_NUMBER:
+            voucher = item.data(QtCore.Qt.UserRole)
+            if voucher:
+                dialog = VoucherEditDialog(month_of_date(voucher.date), ('记账', '月末结转', '年度结转'))
+                dialog.setReadOnly(True)
+                dialog.setCurrentVoucher(voucher.number)
+                dialog.resize(1600, 600)
+                dialog.exec_()
+
+
+    def on_actionPrintTriggered(self):
+        print("打印明细账")
 
 
