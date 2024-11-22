@@ -75,6 +75,9 @@ class SubsidaryLedgerTableWidget(QtWidgets.QTableWidget):
         row_last = self.rowCount() - 1
         for i in range(COLUMN_COUNT):
             item = QtWidgets.QTableWidgetItem()
+            font = item.font()
+            font.setBold(True)
+            item.setFont(font)
             item.setFlags(QtCore.Qt.ItemIsSelectable)
             item.setTextAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
             item.setBackground(QtGui.QColor("#1e58ff"))
@@ -228,14 +231,40 @@ class SubsidiaryLedgerDialog(CustomQDialog):
                 self.table.item(i, COLUMN_DEBIT_LOCAL_AMOUNT).setText(
                     str(FloatWithPrecision(entry.amount * entry.exchange_rate.rate))
                 )
+                self.table.item(i, COLUMN_DEBIT_LOCAL_AMOUNT).setData(
+                    QtCore.Qt.ItemDataRole.UserRole,
+                    FloatWithPrecision(entry.amount * entry.exchange_rate.rate)
+                )
             else:
                 self.table.item(i, COLUMN_CREDIT_CURRENCY_AMOUNT).setText(str(FloatWithPrecision(entry.amount)))
                 self.table.item(i, COLUMN_CREDIT_LOCAL_AMOUNT).setText(
                     str(FloatWithPrecision(entry.amount * entry.exchange_rate.rate))
                 )
+                self.table.item(i, COLUMN_CREDIT_LOCAL_AMOUNT).setData(
+                    QtCore.Qt.ItemDataRole.UserRole,
+                    FloatWithPrecision(entry.amount * entry.exchange_rate.rate)
+                )
 
         self.table.resizeRowsToContents()
         self.setWindowTitle(f"明细账 - {account.name } - {date_from.strftime('%Y年%m月%d日')}至{date_until.strftime('%Y年%m月%d日')}")
+        self.refreshDebitCreditTotal()
+
+    def refreshDebitCreditTotal(self):
+        debit_total = FloatWithPrecision(0.0)
+        credit_total = FloatWithPrecision(0.0)
+        for row in range(self.table.rowCount() - 1):
+            debit_currency_amount = self.table.item(row, COLUMN_DEBIT_LOCAL_AMOUNT).data(QtCore.Qt.ItemDataRole.UserRole)
+            credit_currency_amount = self.table.item(row, COLUMN_CREDIT_LOCAL_AMOUNT).data(QtCore.Qt.ItemDataRole.UserRole)
+            if debit_currency_amount:
+                debit_total += debit_currency_amount
+            if credit_currency_amount:
+                credit_total += credit_currency_amount
+        # 1for
+        self.table.item(self.table.rowCount() - 1, COLUMN_DEBIT_LOCAL_AMOUNT).setText(str(debit_total))
+        self.table.item(self.table.rowCount() - 1, COLUMN_DEBIT_LOCAL_AMOUNT).setData(QtCore.Qt.ItemDataRole.UserRole, debit_total)
+        self.table.item(self.table.rowCount() - 1, COLUMN_CREDIT_LOCAL_AMOUNT).setText(str(credit_total))
+        self.table.item(self.table.rowCount() - 1, COLUMN_CREDIT_LOCAL_AMOUNT).setData(QtCore.Qt.ItemDataRole.UserRole, credit_total)
+
 
     def on_cbox_accountEditingFinished(self):
         editedText = self.cbox_account.lineEdit().text()
@@ -255,7 +284,10 @@ class SubsidiaryLedgerDialog(CustomQDialog):
         )
         if rets:
             name, named, _ = rets[0]
-            self.cbox_account.setCurrentText(name)
+            index = next((i for i, a in enumerate(accounts) if f"{a.code} {a.name}" == name), None)
+            self.cbox_account.setCurrentIndex(index) if index else ...
+        else:
+            self.cbox_account.setCurrentIndex(0)
 
     def on_tb_chooseAccountTriggered(self):
         def on_accept(account):
