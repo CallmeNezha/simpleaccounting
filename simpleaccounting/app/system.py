@@ -466,12 +466,12 @@ class System:
             return [Voucher(v) for v in FFDB.db.Voucher.select(filter)]
 
     @staticmethod
-    def createVoucher(number: str, date: datetime.date, note: str='') -> 'FFDB.db.Voucher':
+    def createVoucher(number: str, date: datetime.date, category='记账', note: str='') -> 'FFDB.db.Voucher':
         with FFDB.db_session:
             if FFDB.db.Voucher.get(number=number):
                 raise IllegalOperation('A3.2/4')
 
-            voucher = FFDB.db.Voucher(number=number, date=date, note=note)
+            voucher = FFDB.db.Voucher(number=number, date=date, category=category, note=note)
             return Voucher(voucher)
 
     @staticmethod
@@ -564,10 +564,6 @@ class System:
             if sum_debit != sum_credit:
                 raise IllegalOperation('A3.2/2')
 
-        if not voucher_number.endswith(('/MECF', '/YECF')):
-            System.updateMonthEndCarryForwardVoucher(voucher.date)
-            System.updateYearEndCarryForwardVoucher(voucher.date)
-
     @staticmethod
     def increaseMRUAccount(account_code: str):
         with FFDB.db_session:
@@ -587,19 +583,8 @@ class System:
             ]
 
     @staticmethod
-    def updateMonthEndCarryForwardVoucher(month: datetime.date):
+    def previewMonthEndCarryForwardVoucherEntries(month: datetime.date):
         with FFDB.db_session:
-            end_voucher = FFDB.db.Voucher.get(number=month.strftime('%Y-%m/MECF'))
-            if not end_voucher:
-                end_voucher = FFDB.db.Voucher(number=month.strftime('%Y-%m/MECF'),
-                                              date=last_day_of_month(month),
-                                              note="Month End Carry Forward",
-                                              category='月末结转')
-
-            end_voucher.debit_entries.clear()
-            end_voucher.credit_entries.clear()
-
-
             number_cost_category = '5'
             number_income_and_expense_category = '6'
 
@@ -657,22 +642,12 @@ class System:
             elif profit_remains < 0.0:
                 credit_entries.append(VoucherEntry(account_code='4103', amount=abs(profit_remains.value)))
             # !if
-        System.updateDebitCreditEntries(end_voucher.number, debit_entries, credit_entries)
-        return Voucher(end_voucher)
+            return debit_entries, credit_entries
+
 
     @staticmethod
-    def updateYearEndCarryForwardVoucher(year: datetime.date):
+    def previewYearEndCarryForwardVoucherEntries(year: datetime.date):
         with FFDB.db_session:
-            voucher = FFDB.db.Voucher.get(number=year.strftime('%Y/YECF'))
-            if not voucher:
-                voucher = FFDB.db.Voucher(number=year.strftime('%Y/YECF'),
-                                              date=datetime.date(year.year + 1, 1, 1),
-                                              note="Year End Carry Forward",
-                                              category='年度结转')
-
-            voucher.debit_entries.clear()
-            voucher.credit_entries.clear()
-
             debit_entries = []
             credit_entries = []
 
@@ -696,9 +671,8 @@ class System:
                 credit_entries.append(VoucherEntry(account_code='4103', amount=abs(profit_remains.value)))
                 debit_entries.append(VoucherEntry(account_code='4104.06', amount=abs(profit_remains.value)))
             # !if
-            System.updateDebitCreditEntries(voucher.number, debit_entries, credit_entries)
+            return debit_entries, credit_entries
 
-        return Voucher(voucher)
 
 
 

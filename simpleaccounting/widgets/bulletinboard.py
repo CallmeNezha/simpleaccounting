@@ -18,7 +18,6 @@ from qtpy import QtWidgets
 from simpleaccounting.app.system import System
 from simpleaccounting.tools.dateutil import months_between
 from simpleaccounting.widgets.qwidgets import CustomQDialog
-from simpleaccounting.widgets.subsidiaryledger import SubsidiaryLedgerDialog
 
 
 class BulletinBoardDialog(CustomQDialog):
@@ -48,9 +47,6 @@ class BulletinBoardDialog(CustomQDialog):
         self.label_date_from = QtWidgets.QLabel()
         self.label_months = QtWidgets.QLabel()
 
-        self.btn_subsidiary_ledger = QtWidgets.QPushButton("明细账")
-        self.btn_subsidiary_ledger.clicked.connect(self.showSubsidiaryLedgerWindow)
-
         grid = QtWidgets.QGridLayout(self)
         gbox = QtWidgets.QGroupBox("账套信息")
         form = QtWidgets.QFormLayout(gbox)
@@ -64,7 +60,6 @@ class BulletinBoardDialog(CustomQDialog):
         grid.addWidget(self.btn_currency, 0, 1)
         grid.addWidget(self.btn_account, 1, 1)
         grid.addWidget(self.btn_voucher, 2, 1)
-        grid.addWidget(self.btn_subsidiary_ledger, 3, 1)
         grid.setColumnStretch(0, 10)
 
     def showAccountMgmtWindow(self):
@@ -82,9 +77,4 @@ class BulletinBoardDialog(CustomQDialog):
     def showVoucherMgmtWindow(self):
         from simpleaccounting.widgets.voucher import VoucherDialog
         dialog = VoucherDialog()
-        dialog.exec_()
-
-    def showSubsidiaryLedgerWindow(self):
-        dialog = SubsidiaryLedgerDialog()
-        dialog.resize(1600, 600)
         dialog.exec_()

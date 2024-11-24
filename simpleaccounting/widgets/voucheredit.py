@@ -18,7 +18,7 @@ import datetime
 import typing
 
 from qtpy import QtWidgets, QtCore, QtGui
-from simpleaccounting.app.system import System, VoucherEntry, Voucher, IllegalOperation
+from simpleaccounting.app.system import System, VoucherEntry, Voucher, IllegalOperation, EntryNotFound
 from simpleaccounting.tools.mymath import FloatWithPrecision
 from simpleaccounting.widgets.qwidgets import CustomQDialog, HorizontalSpacer, CustomInputDialog
 from simpleaccounting.widgets.account import AccountActivateDialog
@@ -273,7 +273,7 @@ class VoucherTableWidget(QtWidgets.QTableWidget):
 
 class VoucherEditDialog(CustomQDialog):
 
-    def __init__(self, date_month: datetime.date, categories):
+    def __init__(self, date_month: datetime.date):
         super().__init__()
         self.setupUI()
         self.de.dateChanged.connect(lambda *args: self.action_save.setEnabled(True))
@@ -283,22 +283,21 @@ class VoucherEditDialog(CustomQDialog):
             first_day_of_month(self.date_month),
             last_day_of_month(self.date_month)
         )
-        self.vouchers = self.selectVouchers(categories)
-        self.categories = categories
+        self.vouchers = self.selectVouchers()
         self.index_current = -1 if len(self.vouchers) == 0 else 0
         self._readonly = False
         self.updateUI()
         self.startTimer(200)
 
     def setupUI(self):
-        self.lbl_hint = QtWidgets.QLabel("点击下一张以录入下一张凭证")
-        self.lbl_hint.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        self.lbl_page = QtWidgets.QLabel()
-        self.lbl_page.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         font = self.font()
         font.setBold(True)
-        self.lbl_page.setFont(font)
+        self.lbl_hint = QtWidgets.QLabel("点击下一张以录入下一张凭证")
+        self.lbl_hint.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.lbl_hint.setFont(font)
+        self.lbl_page = QtWidgets.QLabel()
+        self.lbl_page.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.lbl_page.setFont(font)
         self.de = QtWidgets.QDateEdit()
         self.de.setStyleSheet('color: blue;')
         self.de.setFont(font)
@@ -501,7 +500,7 @@ class VoucherEditDialog(CustomQDialog):
 
         for row in range(self.table.rowCount()):
             if isRefreshNeeded(self.table.item(row, COLUMN_BRIEF)):
-                self.table.resizeRowsToContents()
+                ...
 
             if isRefreshNeeded(self.table.item(row, COLUMN_ACCOUNT)):
                 account = self.table.item(row, COLUMN_ACCOUNT).data(QtCore.Qt.ItemDataRole.UserRole)
@@ -554,13 +553,16 @@ class VoucherEditDialog(CustomQDialog):
                     None
                 )
                 refreshLocalAmount(row)
+        #
+        self.table.resizeRowsToContents()
 
-    def selectVouchers(self, categories):
+    def selectVouchers(self):
         """"""
-        return System.vouchers(
+        return sorted(
+            System.vouchers(
             lambda v: first_day_of_month(self.date_month) <= v.date and
-                      last_day_of_month(self.date_month) >= v.date and
-                      v.category in categories
+                      last_day_of_month(self.date_month) >= v.date),
+            key=lambda v: v.number
         )
 
     def voucherEntries(self) -> tuple[list[VoucherEntry], list[VoucherEntry]]:
@@ -688,7 +690,6 @@ class VoucherEditDialog(CustomQDialog):
             )
         # !for
         self.refreshDebitCreditTotal()
-        self.table.resizeRowsToContents()
 
     def close(self):
         super().close()
@@ -714,7 +715,7 @@ class VoucherEditDialog(CustomQDialog):
                     f"{self.date_month.strftime('%Y-%m')}/{i + 1:04d}"
                 )
 
-            self.vouchers = self.selectVouchers(self.categories)
+            self.vouchers = self.selectVouchers()
             self.index_current = min(self.index_current, len(self.vouchers) - 1)
             self.updateUI()
 
@@ -736,8 +737,7 @@ class VoucherEditDialog(CustomQDialog):
                     #
                     voucher = System.createVoucher(
                         number=f"{self.date_month.strftime('%Y-%m')}/{len(self.vouchers) + 1:04d}",
-                        date=date,
-                        note=""
+                        date=date
                     )
                     self.vouchers.append(voucher)
                     self.index_current = len(self.vouchers) - 1
@@ -838,3 +838,293 @@ class AccountSelectDialog(CustomInputDialog):
             if self.on_accept(account):
                 super().accept()
 
+
+class MonthEndCarryForwardDialog(CustomQDialog):
+
+    def __init__(self, date_month: datetime.date):
+        super().__init__()
+        self.setupUI()
+        self.date_month = date_month
+        self.updateUI()
+
+    def setupUI(self):
+        font = self.font()
+        font.setBold(True)
+        self.lbl_hint = QtWidgets.QLabel("")
+        self.lbl_hint.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.lbl_hint.setFont(font)
+        self.de = QtWidgets.QDateEdit()
+        self.de.setStyleSheet('color: blue;')
+        self.de.setFont(font)
+        self.de.setEnabled(False)
+        self.lbl_voucher_number = QtWidgets.QLabel()
+        self.lbl_voucher_number.setStyleSheet('color: blue;')
+        self.lbl_voucher_number.setFont(font)
+        self.lbl_voucher_category = QtWidgets.QLabel("")
+        self.lbl_voucher_category.setStyleSheet('color: blue;')
+        self.lbl_voucher_category.setFont(font)
+        self.table = VoucherTableWidget()
+        self.table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+        self.action_update = QtWidgets.QAction(QtGui.QIcon(":/icons/liquibaseUpdate.svg"), "更新", self)
+        self.action_update.triggered.connect(self.on_actionUpdateTriggered)
+        self.action_update.setShortcut(QtGui.QKeySequence('Ctrl+S'))
+        self.action_update.setToolTip('Ctrl+S')
+        self.tbar = QtWidgets.QToolBar()
+        self.tbar.setToolButtonStyle(QtCore.Qt.ToolButtonTextUnderIcon)
+        self.tbar.addWidget(HorizontalSpacer())
+        self.tbar.addSeparator()
+        self.tbar.addAction(self.action_update)
+        vbox = QtWidgets.QVBoxLayout(self)
+        vbox.addWidget(self.tbar)
+        hbox = QtWidgets.QHBoxLayout()
+        hbox.addStretch(10)
+        hbox.addWidget(QtWidgets.QLabel("凭证类型"))
+        hbox.addWidget(self.lbl_voucher_category)
+        hbox.addWidget(QtWidgets.QLabel("日期"))
+        hbox.addWidget(self.de)
+        hbox.addWidget(QtWidgets.QLabel("记字号"))
+        hbox.addWidget(self.lbl_voucher_number)
+        vbox.addLayout(hbox)
+        self.stack = QtWidgets.QStackedWidget()
+        self.stack.addWidget(self.lbl_hint)
+        self.stack.addWidget(self.table)
+        vbox.addWidget(self.stack)
+
+    def updateUI(self):
+        self.action_update.setEnabled(False)
+        self.action_update.setText('无需更新')
+        self.lbl_voucher_category.setText('月末结转')
+        self.lbl_voucher_number.setText(self.date_month.strftime('%Y-%m/MECF'))
+        self.de.setDate(last_day_of_month(self.date_month))
+        debit_entries, credit_entries = System.previewMonthEndCarryForwardVoucherEntries(self.date_month)
+        if debit_entries and credit_entries:
+            self.stack.setCurrentWidget(self.table)
+            self.table.setRowCount(len(debit_entries) + len(credit_entries))
+            for i in range(len(debit_entries)):
+                self.setDebitEntryAtTableRow(i, debit_entries[i])
+            for i in range(len(credit_entries)):
+                j = i + len(debit_entries)
+                self.setCreditEntryAtTableRow(j, credit_entries[i])
+            # 1for
+            self.refreshDebitCreditTotal()
+        else:
+            self.stack.setCurrentWidget(self.lbl_hint)
+            self.lbl_hint.setText(self.date_month.strftime('%Y年%m月') + "无需结转")
+            return
+        #
+        try:
+            voucher = System.voucher(self.date_month.strftime('%Y-%m/MECF'))
+            a = [(e.account_code, FloatWithPrecision(e.amount), e.brief) for e in debit_entries]
+            b = [(e.account.code, FloatWithPrecision(e.amount), e.brief) for e in voucher.debit_entries]
+            if sorted(a) != sorted(b):
+                self.action_update.setEnabled(True)
+                self.action_update.setText('更新')
+            a = [(e.account_code, FloatWithPrecision(e.amount), e.brief) for e in credit_entries]
+            b = [(e.account.code, FloatWithPrecision(e.amount), e.brief) for e in voucher.credit_entries]
+            if sorted(a) != sorted(b):
+                self.action_update.setEnabled(True)
+                self.action_update.setText('更新')
+        except EntryNotFound:
+            self.action_update.setEnabled(True)
+            self.action_update.setText('更新')
+
+    def setDebitEntryAtTableRow(self, row: int, debit_entry: VoucherEntry):
+        self.table.item(row, COLUMN_BRIEF).setText(debit_entry.brief)
+        account = System.account(debit_entry.account_code)
+        self.table.item(row, COLUMN_ACCOUNT).setText(account.qualname)
+        self.table.item(row, COLUMN_ACCOUNT).setData(
+            QtCore.Qt.UserRole,
+            account
+        )
+        currency = System.currency(account.currency.name)
+        self.table.item(row, COLUMN_CURRENCY).setText(currency.name)
+        self.table.item(row, COLUMN_CURRENCY).setData(
+            QtCore.Qt.UserRole,
+            currency
+        )
+        er = System.exchangeRate(currency.name, self.date_month)
+        self.table.item(row, COLUMN_EXCHANGE_RATE).setText(
+            str(FloatWithPrecision(er.rate))
+        )
+        self.table.item(row, COLUMN_EXCHANGE_RATE).setData(
+            QtCore.Qt.UserRole,
+            er
+        )
+        self.table.item(row, COLUMN_DEBIT_CURRENCY_AMOUNT).setText(
+            str(FloatWithPrecision(debit_entry.amount))
+        )
+        self.table.item(row, COLUMN_DEBIT_CURRENCY_AMOUNT).setData(
+            QtCore.Qt.UserRole,
+            FloatWithPrecision(debit_entry.amount)
+        )
+        self.table.item(row, COLUMN_DEBIT_LOCAL_AMOUNT).setText(
+            str(FloatWithPrecision(debit_entry.amount * er.rate))
+        )
+        self.table.item(row, COLUMN_DEBIT_LOCAL_AMOUNT).setData(
+            QtCore.Qt.UserRole,
+            FloatWithPrecision(debit_entry.amount * er.rate)
+        )
+
+    def setCreditEntryAtTableRow(self, row: int, credit_entry: VoucherEntry):
+        self.table.item(row, COLUMN_BRIEF).setText(credit_entry.brief)
+        account = System.account(credit_entry.account_code)
+        self.table.item(row, COLUMN_ACCOUNT).setText(account.qualname)
+        self.table.item(row, COLUMN_ACCOUNT).setData(
+            QtCore.Qt.UserRole,
+            account
+        )
+        currency = System.currency(account.currency.name)
+        self.table.item(row, COLUMN_CURRENCY).setText(currency.name)
+        self.table.item(row, COLUMN_CURRENCY).setData(
+            QtCore.Qt.UserRole,
+            currency
+        )
+        er = System.exchangeRate(currency.name, self.date_month)
+        self.table.item(row, COLUMN_EXCHANGE_RATE).setText(
+            str(FloatWithPrecision(er.rate))
+        )
+        self.table.item(row, COLUMN_EXCHANGE_RATE).setData(
+            QtCore.Qt.UserRole,
+            er
+        )
+        self.table.item(row, COLUMN_CREDIT_CURRENCY_AMOUNT).setText(
+            str(FloatWithPrecision(credit_entry.amount))
+        )
+        self.table.item(row, COLUMN_CREDIT_CURRENCY_AMOUNT).setData(
+            QtCore.Qt.UserRole,
+            FloatWithPrecision(credit_entry.amount)
+        )
+        self.table.item(row, COLUMN_CREDIT_LOCAL_AMOUNT).setText(
+            str(FloatWithPrecision(credit_entry.amount * er.rate))
+        )
+        self.table.item(row, COLUMN_CREDIT_LOCAL_AMOUNT).setData(
+            QtCore.Qt.UserRole,
+            FloatWithPrecision(credit_entry.amount * er.rate)
+        )
+
+    def refreshDebitCreditTotal(self):
+        debit_total = FloatWithPrecision(0.0)
+        credit_total = FloatWithPrecision(0.0)
+        for row in range(self.table.rowCount() - 1):
+            debit_currency_amount = self.table.item(row, COLUMN_DEBIT_LOCAL_AMOUNT).data(QtCore.Qt.ItemDataRole.UserRole)
+            credit_currency_amount = self.table.item(row, COLUMN_CREDIT_LOCAL_AMOUNT).data(QtCore.Qt.ItemDataRole.UserRole)
+            if debit_currency_amount:
+                debit_total += debit_currency_amount
+            if credit_currency_amount:
+                credit_total += credit_currency_amount
+        # 1for
+        self.table.item(self.table.rowCount() - 1, COLUMN_DEBIT_LOCAL_AMOUNT).setText(str(debit_total))
+        self.table.item(self.table.rowCount() - 1, COLUMN_DEBIT_LOCAL_AMOUNT).setData(QtCore.Qt.ItemDataRole.UserRole, debit_total)
+        self.table.item(self.table.rowCount() - 1, COLUMN_CREDIT_LOCAL_AMOUNT).setText(str(credit_total))
+        self.table.item(self.table.rowCount() - 1, COLUMN_CREDIT_LOCAL_AMOUNT).setData(QtCore.Qt.ItemDataRole.UserRole, credit_total)
+
+    def on_actionUpdateTriggered(self):
+        try:
+            voucher = System.voucher(self.date_month.strftime('%Y-%m/MECF'))
+            voucher.credit_entries.clear()
+            voucher.debit_entries.clear()
+        except EntryNotFound:
+            voucher = System.createVoucher(
+                self.date_month.strftime('%Y-%m/MECF'),
+                last_day_of_month(self.date_month),
+                category='月末结转'
+            )
+
+        System.updateDebitCreditEntries(
+            self.date_month.strftime('%Y-%m/MECF'),
+            *self.voucherEntries()
+        )
+        self.action_update.setEnabled(False)
+        self.action_update.setText('无需更新')
+
+    def voucherEntries(self) -> tuple[list[VoucherEntry], list[VoucherEntry]]:
+        """
+        Returns debit and credit voucher entries
+        """
+        debit_entries = []
+        credit_entries = []
+        for row in range(self.table.rowCount() - 1):
+            brief = self.table.item(row, COLUMN_BRIEF).text()
+            account = self.table.item(row, COLUMN_ACCOUNT).data(QtCore.Qt.ItemDataRole.UserRole)
+            currency = self.table.item(row, COLUMN_CURRENCY).data(QtCore.Qt.ItemDataRole.UserRole)
+            exchange_rate = self.table.item(row, COLUMN_EXCHANGE_RATE).data(QtCore.Qt.ItemDataRole.UserRole)
+            debit_amount = self.table.item(row, COLUMN_DEBIT_CURRENCY_AMOUNT).data(QtCore.Qt.ItemDataRole.UserRole)
+            credit_amount = self.table.item(row, COLUMN_CREDIT_CURRENCY_AMOUNT).data(QtCore.Qt.ItemDataRole.UserRole)
+            if account and currency and exchange_rate and (debit_amount or credit_amount):
+                if debit_amount:
+                    debit_entries.append(
+                        VoucherEntry(
+                        account_code=account.code,
+                        amount=debit_amount.value,
+                        brief=brief
+                        )
+                    )
+                else:
+                    credit_entries.append(
+                        VoucherEntry(
+                            account_code=account.code,
+                            amount=credit_amount.value,
+                            brief=brief
+                        )
+                    )
+        return debit_entries, credit_entries
+
+
+class YearEndCarryForwardDialog(MonthEndCarryForwardDialog):
+
+    def updateUI(self):
+        self.action_update.setEnabled(False)
+        self.action_update.setText('无需更新')
+        self.lbl_voucher_category.setText('往年结转')
+        self.lbl_voucher_number.setText(self.date_month.strftime('%Y-XX/YECF'))
+        self.de.setDate(datetime.date(self.date_month.year + 1, 1, 1))
+        debit_entries, credit_entries = System.previewYearEndCarryForwardVoucherEntries(self.date_month)
+        if debit_entries and credit_entries:
+            self.stack.setCurrentWidget(self.table)
+            self.table.setRowCount(len(debit_entries) + len(credit_entries))
+            for i in range(len(debit_entries)):
+                self.setDebitEntryAtTableRow(i, debit_entries[i])
+            for i in range(len(credit_entries)):
+                j = i + len(debit_entries)
+                self.setCreditEntryAtTableRow(j, credit_entries[i])
+            # 1for
+            self.refreshDebitCreditTotal()
+        else:
+            self.stack.setCurrentWidget(self.lbl_hint)
+            self.lbl_hint.setText(self.date_month.strftime('%Y年') + "无需结转")
+            return
+        #
+        try:
+            voucher = System.voucher(self.date_month.strftime('%Y-XX/YECF'))
+            a = [(e.account_code, FloatWithPrecision(e.amount), e.brief) for e in debit_entries]
+            b = [(e.account.code, FloatWithPrecision(e.amount), e.brief) for e in voucher.debit_entries]
+            if sorted(a) != sorted(b):
+                self.action_update.setEnabled(True)
+                self.action_update.setText('更新')
+            a = [(e.account_code, FloatWithPrecision(e.amount), e.brief) for e in credit_entries]
+            b = [(e.account.code, FloatWithPrecision(e.amount), e.brief) for e in voucher.credit_entries]
+            if sorted(a) != sorted(b):
+                self.action_update.setEnabled(True)
+                self.action_update.setText('更新')
+        except EntryNotFound:
+            self.action_update.setEnabled(True)
+            self.action_update.setText('更新')
+
+    def on_actionUpdateTriggered(self):
+        try:
+            voucher = System.voucher(self.date_month.strftime('%Y-XX/YECF'))
+            voucher.credit_entries.clear()
+            voucher.debit_entries.clear()
+        except EntryNotFound:
+            System.createVoucher(
+                self.date_month.strftime('%Y-XX/YECF'),
+                datetime.date(self.date_month.year + 1, 1, 1),
+                category='往年结转'
+            )
+
+        System.updateDebitCreditEntries(
+            self.date_month.strftime('%Y-XX/YECF'),
+            *self.voucherEntries()
+        )
+        self.action_update.setEnabled(False)
+        self.action_update.setText('无需更新')

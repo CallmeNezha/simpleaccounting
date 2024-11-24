@@ -203,12 +203,12 @@ class SubsidiaryLedgerDialog(CustomQDialog):
         entries = []
         for v in System.vouchers(lambda v: v.date >= date_from and v.date <= date_until):
             for entry in v.debit_entries:
-                if entry.account.code == account.code:
+                if entry.account.code.startswith(account.code):
                     entries.append(('debit', v, entry))
                 # 1if
             # 1for
             for entry in v.credit_entries:
-                if entry.account.code == account.code:
+                if entry.account.code.startswith(account.code):
                     entries.append(('credit', v, entry))
                 # 1if
             # 1for
@@ -302,7 +302,7 @@ class SubsidiaryLedgerDialog(CustomQDialog):
         if item.column() == COLUMN_VOUCHER_NUMBER:
             voucher = item.data(QtCore.Qt.UserRole)
             if voucher:
-                dialog = VoucherEditDialog(month_of_date(voucher.date), ('记账', '月末结转', '年度结转'))
+                dialog = VoucherEditDialog(month_of_date(voucher.date))
                 dialog.setReadOnly(True)
                 dialog.setCurrentVoucher(voucher.number)
                 dialog.resize(1600, 600)
