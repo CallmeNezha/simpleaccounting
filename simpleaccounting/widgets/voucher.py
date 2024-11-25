@@ -31,13 +31,12 @@ class VoucherDialog(CustomQDialog):
         self.updateUI()
 
     def setupUI(self):
+        font = self.font()
+        font.setBold(True)
         self.setWindowTitle("凭证管理")
-        #
         self.list_month = QtWidgets.QListWidget()
         self.list_month.setMaximumWidth(self.fontMetrics().horizontalAdvance("2019.06") * 2)
         self.list_month.currentItemChanged.connect(self.on_listMonthCurrentChanged)
-        font = self.font()
-        font.setBold(True)
         self.label_voucher_count = QtWidgets.QLabel("0")
         self.label_voucher_count.setStyleSheet('color: blue;')
         self.label_voucher_count.setFont(font)
@@ -47,7 +46,6 @@ class VoucherDialog(CustomQDialog):
         self.label_year_ending_voucher_state = QtWidgets.QLabel("无")
         self.label_year_ending_voucher_state.setStyleSheet('color: red;')
         self.label_year_ending_voucher_state.setFont(font)
-
         self.gbox = QtWidgets.QGroupBox("本月信息")
         grid = QtWidgets.QGridLayout(self.gbox)
         grid.addWidget(QtWidgets.QLabel("本月记账"), 0, 0)
@@ -56,37 +54,32 @@ class VoucherDialog(CustomQDialog):
         grid.addWidget(self.label_month_ending_voucher_state, 1, 1)
         grid.addWidget(QtWidgets.QLabel("往年结转"), 2, 0)
         grid.addWidget(self.label_year_ending_voucher_state, 2, 1)
-
         grid.setColumnStretch(1, 1000)
         grid.setRowStretch(2, 1000)
 
-        self.btn_entry = QtWidgets.QPushButton("（1）凭证录入")
-        self.btn_entry.clicked.connect(self.on_btn_EntryClicked)
-        grid.addWidget(self.btn_entry, 3, 0, 1, 2)
-
-        self.btn_month_end_carry_forward_voucher = QtWidgets.QPushButton("（2）月末结转")
+        self.btn_voucher_entry = QtWidgets.QPushButton("（1）凭证录入")
+        self.btn_voucher_entry.clicked.connect(self.on_btn_entryClicked)
+        self.btn_exchange_gains_losses = QtWidgets.QPushButton(" （2）汇兑损益")
+        # self.btn_exchange_gains_losses.clicked.connect(self.on_btn_ExchangeGainsLossesClicked)
+        self.btn_month_end_carry_forward_voucher = QtWidgets.QPushButton("（3）月末结转")
         self.btn_month_end_carry_forward_voucher.clicked.connect(self.on_btn_MECFVClicked)
-        grid.addWidget(self.btn_month_end_carry_forward_voucher, 4, 0, 1, 2)
-
-        self.btn_last_year_end_carry_forward_voucher = QtWidgets.QPushButton("（3）往年结转")
+        self.btn_last_year_end_carry_forward_voucher = QtWidgets.QPushButton("（4）往年结转")
         self.btn_last_year_end_carry_forward_voucher.clicked.connect(self.on_btn_YECFVClicked)
-        grid.addWidget(self.btn_last_year_end_carry_forward_voucher, 5, 0, 1, 2)
-
         self.btn_forward_month = QtWidgets.QPushButton("进入下月")
-        self.btn_forward_month.clicked.connect(self.on_btn_ForwardMonthClicked)
-
+        self.btn_forward_month.clicked.connect(self.on_btn_forwardMonthClicked)
         self.btn_subsidiary_ledger = QtWidgets.QPushButton("明细账")
         self.btn_subsidiary_ledger.clicked.connect(self.on_btn_subsidiaryLedgerClicked)
-
         self.btn_view = QtWidgets.QPushButton("【Excel】凭证查看")
-        # self.button_view.clicked.connect(self.on_buttonViewClicked)
-
+        # self.btn_view.clicked.connect(self.on_buttonViewClicked)
+        grid.addWidget(self.btn_voucher_entry, 3, 0, 1, 2)
+        grid.addWidget(self.btn_exchange_gains_losses, 4, 0, 1, 2)
+        grid.addWidget(self.btn_month_end_carry_forward_voucher, 5, 0, 1, 2)
+        grid.addWidget(self.btn_last_year_end_carry_forward_voucher, 6, 0, 1, 2)
         vbox = QtWidgets.QVBoxLayout()
         vbox.addWidget(self.btn_forward_month)
         vbox.addStretch(10)
         vbox.addWidget(self.btn_subsidiary_ledger)
         vbox.addWidget(self.btn_view)
-
         hbox = QtWidgets.QHBoxLayout(self)
         hbox.addWidget(self.list_month)
         hbox.addWidget(self.gbox)
@@ -110,7 +103,7 @@ class VoucherDialog(CustomQDialog):
         self.list_month.currentItem().setForeground(QtGui.QColor('#0000FF'))
         self.on_listMonthCurrentChanged()
 
-    def on_btn_EntryClicked(self):
+    def on_btn_entryClicked(self):
         item = self.list_month.currentItem()
         if not item:
             return
@@ -145,7 +138,7 @@ class VoucherDialog(CustomQDialog):
         dialog.exec_()
         self.on_listMonthCurrentChanged()
 
-    def on_btn_ForwardMonthClicked(self):
+    def on_btn_forwardMonthClicked(self):
         if QtWidgets.QMessageBox.Yes == QtWidgets.QMessageBox.question(None, "确认", "是否进入下一个账期"):
             System.forwardToNextMonth()
             self.updateUI()
@@ -154,6 +147,32 @@ class VoucherDialog(CustomQDialog):
         dialog = SubsidiaryLedgerDialog()
         dialog.resize(1600, 600)
         dialog.exec_()
+
+
+    def on_listMonthCurrentChanged(self):
+        #
+        item = self.list_month.currentItem()
+        if not item:
+            return
+        date: datetime.date = item.data(QtCore.Qt.ItemDataRole.UserRole)
+        date_from = datetime.date(year=date.year, month=date.month, day=1)
+        date_until = last_day_of_month(date_from)
+        self.gbox.setTitle(date.strftime('%Y年%m月'))
+
+        vouchers = System.vouchers(lambda v: v.date >= date_from and v.date <= date_until and v.category == '记账')
+        self.label_voucher_count.setText(str(len(vouchers)))
+
+        vouchers = System.vouchers(lambda v: v.date >= date_from and v.date <= date_until and v.category == '月末结转')
+        self.label_month_ending_voucher_state.setText(str(len(vouchers)))
+        self.label_month_ending_voucher_state.setStyleSheet('color: green;' if len(vouchers) > 0 else 'color: red;')
+
+        vouchers = System.vouchers(lambda v: v.date >= date_from and v.date <= date_until and v.category == '往年结转')
+        self.label_year_ending_voucher_state.setText(str(len(vouchers)))
+        self.label_year_ending_voucher_state.setStyleSheet('color: green;' if len(vouchers) > 0 else 'color: red;')
+
+        # 年初1月启用往年结转
+        self.label_month_ending_voucher_state.setEnabled(date.month == 1)
+        self.btn_last_year_end_carry_forward_voucher.setEnabled(date.month == 1)
 
     # def on_buttonViewClicked(self):
     #
@@ -284,28 +303,3 @@ class VoucherDialog(CustomQDialog):
     #                 sheet_remains[f'{min(r) + 1}:{max(r)}'].api.Rows.Hidden = True
     #
     #     QtWidgets.QMessageBox.information(None, "提示", "Excel数据导出完成。")
-
-    def on_listMonthCurrentChanged(self):
-        #
-        item = self.list_month.currentItem()
-        if not item:
-            return
-        date: datetime.date = item.data(QtCore.Qt.ItemDataRole.UserRole)
-        date_from = datetime.date(year=date.year, month=date.month, day=1)
-        date_until = last_day_of_month(date_from)
-        self.gbox.setTitle(date.strftime('%Y年%m月'))
-
-        vouchers = System.vouchers(lambda v: v.date >= date_from and v.date <= date_until and v.category == '记账')
-        self.label_voucher_count.setText(str(len(vouchers)))
-
-        vouchers = System.vouchers(lambda v: v.date >= date_from and v.date <= date_until and v.category == '月末结转')
-        self.label_month_ending_voucher_state.setText(str(len(vouchers)))
-        self.label_month_ending_voucher_state.setStyleSheet('color: green;' if len(vouchers) > 0 else 'color: red;')
-
-        vouchers = System.vouchers(lambda v: v.date >= date_from and v.date <= date_until and v.category == '往年结转')
-        self.label_year_ending_voucher_state.setText(str(len(vouchers)))
-        self.label_year_ending_voucher_state.setStyleSheet('color: green;' if len(vouchers) > 0 else 'color: red;')
-
-        # 年初1月启用往年结转
-        self.label_month_ending_voucher_state.setEnabled(date.month == 1)
-        self.btn_last_year_end_carry_forward_voucher.setEnabled(date.month == 1)

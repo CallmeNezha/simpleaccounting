@@ -85,8 +85,8 @@ class AccountItemDelegate(QtWidgets.QStyledItemDelegate):
 
     def setCurrencyIfNot(self, account):
         if not account.children and account.currency is None:
-            def setCurrency(currency_name):
-                System.setAccountCurrency(account.code, currency_name)
+            def setCurrency(currency_name, exchange_gains_and_losses):
+                System.setAccountCurrency(account.code, currency_name, exchange_gains_and_losses)
                 return True
             AccountActivateDialog(account.name, account.code, setCurrency).exec_()
 
@@ -786,8 +786,8 @@ class VoucherEditDialog(CustomQDialog):
 
     def setCurrencyIfNot(self, account) -> bool:
         if not account.children and account.currency is None:
-            def setCurrency(currency_name):
-                System.setAccountCurrency(account.code, currency_name)
+            def setCurrency(currency_name, exchange_gains_and_losses):
+                System.setAccountCurrency(account.code, currency_name, exchange_gains_and_losses)
                 return True
             AccountActivateDialog(account.name, account.code, setCurrency).exec_()
         #

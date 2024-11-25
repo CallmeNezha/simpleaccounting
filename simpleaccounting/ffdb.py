@@ -64,9 +64,10 @@ class FFDB:
             sub_category = Required(str)           # 科目小类
             direction = Required(str)              # 借或贷
             currency = Optional(Currency)          # 币种
-            custom = Required(bool, default=True)                # 是否为用户自定义科目
-            parent = Optional('Account')                         # 父科目，可以为 None，表示顶级科目
-            children = Set('Account', reverse='parent')  # 子科目集合，reverse='parent' 表示从子科目反向查找父科目
+            exchange_gains_and_losses = Required(bool, default=False)    # 是否加入汇兑损益
+            custom = Required(bool, default=True)                      # 是否为用户自定义科目
+            parent = Optional('Account')                               # 父科目，可以为 None，表示顶级科目
+            children = Set('Account', reverse='parent')        # 子科目集合，reverse='parent' 表示从子科目反向查找父科目
             debit_entries = Set('DebitEntry', reverse='account')      # 借方条目集合
             credit_entries = Set('CreditEntry', reverse='account')    # 贷方条目集合
             ending_balances = Set('Shadow_EndingBalance', reverse='account') # 结余条目集合

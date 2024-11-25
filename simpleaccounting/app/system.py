@@ -75,6 +75,7 @@ class Account:
         self.sub_category = account.sub_category
         self.direction = account.direction
         self.custom = account.custom
+        self.exchange_gains_and_losses = account.exchange_gains_and_losses
 
     @property
     def parent(self):
@@ -329,7 +330,7 @@ class System:
             return list((Account(a) for a in FFDB.db.Account.select()))
 
     @staticmethod
-    def setAccountCurrency(account_code: str, currency_name: str):
+    def setAccountCurrency(account_code: str, currency_name: str, exchange_gains_and_losses: bool=False):
         with FFDB.db_session:
             account = FFDB.db.Account.get(code=account_code)
             if account is None:
@@ -338,11 +339,17 @@ class System:
                 raise IllegalOperation('A2.1/1')
             elif account.children:
                 raise IllegalOperation('A2.1/4')
+            elif exchange_gains_and_losses:
+                if currency_name == '人民币':
+                    raise IllegalOperation('A5.1/1')
+                elif account.children:
+                    raise IllegalOperation('A5.1/2')
 
             currency = FFDB.db.Currency.get(name=currency_name)
             if currency is None:
                 raise EntryNotFound(currency_name)
             account.currency = currency
+            account.exchange_gains_and_losses = exchange_gains_and_losses
 
     @staticmethod
     def createCurrency(name: str) -> Currency:
