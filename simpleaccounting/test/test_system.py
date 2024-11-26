@@ -13,6 +13,7 @@
     See the License for the specific language governing permissions and
     limitations under the License.
 """
+from locale import currency
 
 import pytest
 import datetime
@@ -180,8 +181,8 @@ class TestSystem:
         System.createVoucher('test/001', datetime.date(2000, 1, 1))
         System.updateDebitCreditEntries(
             'test/001',
-            [VoucherEntry(account_code='1002.01.05', amount=100.0)],
-            [VoucherEntry(account_code='1002.02', amount=800.0)]
+            [VoucherEntry(account_code='1002.01.05', amount=100.0, currency_name='美元')],
+            [VoucherEntry(account_code='1002.02', amount=800.0, currency_name='人民币')]
         )
 
         with pytest.raises(IllegalOperation, match='A2.1/3'):
@@ -211,8 +212,8 @@ class TestSystem:
         System.createVoucher('test/001', datetime.date(2000, 1, 1))
         System.updateDebitCreditEntries(
             'test/001',
-            [VoucherEntry(account_code='1002.01.05', amount=100.0)],
-            [VoucherEntry(account_code='1002.02', amount=800.0)]
+            [VoucherEntry(account_code='1002.01.05', amount=100.0, currency_name='美元')],
+            [VoucherEntry(account_code='1002.02', amount=800.0, currency_name='人民币')]
         )
 
     def test_account_A2_2S3(self):
@@ -226,8 +227,8 @@ class TestSystem:
         System.createCurrency('美元')
         System.createExchangeRate('美元', 8.0, datetime.date(2000, 1, 1))
         System.createExchangeRate('美元', 7.0, datetime.date(2024, 1, 15))
-        assert System.exchangeRate('美元', datetime.date(2000, 12, 31)).rate == 8.0
-        assert System.exchangeRate('美元', datetime.date(2024, 1, 1)).rate == 7.0
+        assert System.exchangeRate('美元', datetime.date(2024, 1, 14)).rate == 8.0
+        assert System.exchangeRate('美元', datetime.date(2024, 1, 15)).rate == 7.0
 
     def test_account_A3_2S1(self):
         with pytest.raises(IllegalOperation, match='A2.2/1'):
@@ -246,8 +247,8 @@ class TestSystem:
         with pytest.raises(IllegalOperation, match='A3.2/2'):
             System.updateDebitCreditEntries(
                 'test/001',
-                [VoucherEntry(account_code='1002.01.05', amount=100.0)],
-                [VoucherEntry(account_code='1002.02', amount=700.0)]
+                [VoucherEntry(account_code='1002.01.05', amount=100.0, currency_name='美元')],
+                [VoucherEntry(account_code='1002.02', amount=700.0, currency_name='人民币')]
             )
 
     def test_account_A3_2S3(self):
@@ -259,16 +260,16 @@ class TestSystem:
         System.createExchangeRate('美元', 7.0, datetime.date(2000, 2, 1))
         System.setAccountCurrency('1002.01.05', '美元')
         System.setAccountCurrency('1002.02', '人民币')
-        System.createVoucher('test/001', datetime.date(2000, 1, 1))
+        System.createVoucher('test/001', datetime.date(2000, 1, 15))
         System.updateDebitCreditEntries(
             'test/001',
-            [VoucherEntry(account_code='1002.01.05', amount=100.0)],
-            [VoucherEntry(account_code='1002.02', amount=800.0)]
+            [VoucherEntry(account_code='1002.01.05', amount=100.0, currency_name='美元')],
+            [VoucherEntry(account_code='1002.02', amount=800.0, currency_name='人民币')]
         )
 
         System.createVoucher('test/002', datetime.date(2000, 2, 15))
         System.updateDebitCreditEntries(
             'test/002',
-            [VoucherEntry(account_code='1002.01.05', amount=100.0)],
-            [VoucherEntry(account_code='1002.02', amount=700.0)]
+            [VoucherEntry(account_code='1002.01.05', amount=100.0, currency_name='美元')],
+            [VoucherEntry(account_code='1002.02', amount=700.0, currency_name='人民币')]
         )

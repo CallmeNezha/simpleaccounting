@@ -276,7 +276,7 @@ class VoucherEditDialog(CustomQDialog):
     def __init__(self, date_month: datetime.date):
         super().__init__()
         self.setupUI()
-        self.de.dateChanged.connect(lambda *args: self.action_save.setEnabled(True))
+        self.de.dateChanged.connect(lambda *args: (self.action_save.setEnabled(True), self.refresh(True)))
         self.table.tb_choose_account.clicked.connect(self.on_tbChooseAccountClicked)
         self.date_month = date_month
         self.de.setDateRange(
@@ -415,13 +415,13 @@ class VoucherEditDialog(CustomQDialog):
             # no vouchers have been created yet
             return True
         try:
-            System.updateDebitCreditEntries(
-                self.vouchers[self.index_current].number,
-                *self.voucherEntries()
-            )
             System.setVoucherDate(
                 self.vouchers[self.index_current].number,
                 datetime.date(self.de.date().year(), self.de.date().month(), self.de.date().day())
+            )
+            System.updateDebitCreditEntries(
+                self.vouchers[self.index_current].number,
+                *self.voucherEntries()
             )
             self.vouchers[self.index_current] = System.voucher(self.vouchers[self.index_current].number)
             self.action_save.setEnabled(False)
@@ -451,7 +451,7 @@ class VoucherEditDialog(CustomQDialog):
         self.table.item(self.table.rowCount() - 1, COLUMN_CREDIT_LOCAL_AMOUNT).setText(str(credit_total))
         self.table.item(self.table.rowCount() - 1, COLUMN_CREDIT_LOCAL_AMOUNT).setData(QtCore.Qt.ItemDataRole.UserRole, credit_total)
 
-    def refresh(self):
+    def refresh(self, force=False):
 
         def isRefreshNeeded(item) -> bool:
             needed = item.data(QtCore.Qt.ItemDataRole.StatusTipRole) is not None
@@ -499,10 +499,10 @@ class VoucherEditDialog(CustomQDialog):
             self.refreshDebitCreditTotal()
 
         for row in range(self.table.rowCount()):
-            if isRefreshNeeded(self.table.item(row, COLUMN_BRIEF)):
+            if isRefreshNeeded(self.table.item(row, COLUMN_BRIEF)) or force:
                 ...
 
-            if isRefreshNeeded(self.table.item(row, COLUMN_ACCOUNT)):
+            if isRefreshNeeded(self.table.item(row, COLUMN_ACCOUNT)) or force:
                 account = self.table.item(row, COLUMN_ACCOUNT).data(QtCore.Qt.ItemDataRole.UserRole)
                 if account and account.currency:
                     self.table.item(row, COLUMN_CURRENCY).setText(
@@ -512,14 +512,15 @@ class VoucherEditDialog(CustomQDialog):
                         QtCore.Qt.ItemDataRole.UserRole,
                         account.currency
                     )
+                    date = datetime.date(self.de.date().year(), self.de.date().month(), self.de.date().day())
                     self.table.item(row, COLUMN_EXCHANGE_RATE).setText(
                         str(FloatWithPrecision(
-                            System.exchangeRate(account.currency.name, self.date_month).rate
+                            System.exchangeRate(account.currency.name, date).rate
                         ))
                     )
                     self.table.item(row, COLUMN_EXCHANGE_RATE).setData(
                         QtCore.Qt.ItemDataRole.UserRole,
-                        System.exchangeRate(account.currency.name, self.date_month)
+                        System.exchangeRate(account.currency.name, date)
                     )
                     setDirty(self.table.item(row, COLUMN_EXCHANGE_RATE))
                 else:
@@ -535,10 +536,10 @@ class VoucherEditDialog(CustomQDialog):
                     )
                     setDirty(self.table.item(row, COLUMN_EXCHANGE_RATE))
 
-            if isRefreshNeeded(self.table.item(row, COLUMN_EXCHANGE_RATE)):
+            if isRefreshNeeded(self.table.item(row, COLUMN_EXCHANGE_RATE)) or force:
                 refreshLocalAmount(row)
 
-            if isRefreshNeeded(self.table.item(row, COLUMN_DEBIT_CURRENCY_AMOUNT)):
+            if isRefreshNeeded(self.table.item(row, COLUMN_DEBIT_CURRENCY_AMOUNT)) or force:
                 self.table.item(row, COLUMN_CREDIT_CURRENCY_AMOUNT).setText("")
                 self.table.item(row, COLUMN_CREDIT_CURRENCY_AMOUNT).setData(
                     QtCore.Qt.ItemDataRole.UserRole,
@@ -546,7 +547,7 @@ class VoucherEditDialog(CustomQDialog):
                 )
                 refreshLocalAmount(row)
 
-            if isRefreshNeeded(self.table.item(row, COLUMN_CREDIT_CURRENCY_AMOUNT)):
+            if isRefreshNeeded(self.table.item(row, COLUMN_CREDIT_CURRENCY_AMOUNT)) or force:
                 self.table.item(row, COLUMN_DEBIT_CURRENCY_AMOUNT).setText("")
                 self.table.item(row, COLUMN_DEBIT_CURRENCY_AMOUNT).setData(
                     QtCore.Qt.ItemDataRole.UserRole,
@@ -584,6 +585,7 @@ class VoucherEditDialog(CustomQDialog):
                         VoucherEntry(
                         account_code=account.code,
                         amount=debit_amount.value,
+                        currency_name=currency.name,
                         brief=brief
                         )
                     )
@@ -592,6 +594,7 @@ class VoucherEditDialog(CustomQDialog):
                         VoucherEntry(
                             account_code=account.code,
                             amount=credit_amount.value,
+                            currency_name=currency.name,
                             brief=brief
                         )
                     )
@@ -936,7 +939,7 @@ class MonthEndCarryForwardDialog(CustomQDialog):
             QtCore.Qt.UserRole,
             account
         )
-        currency = System.currency(account.currency.name)
+        currency = System.currency(debit_entry.currency_name)
         self.table.item(row, COLUMN_CURRENCY).setText(currency.name)
         self.table.item(row, COLUMN_CURRENCY).setData(
             QtCore.Qt.UserRole,
@@ -973,13 +976,13 @@ class MonthEndCarryForwardDialog(CustomQDialog):
             QtCore.Qt.UserRole,
             account
         )
-        currency = System.currency(account.currency.name)
-        self.table.item(row, COLUMN_CURRENCY).setText(currency.name)
+        currency = System.currency(credit_entry.currency_name)
+        self.table.item(row, COLUMN_CURRENCY).setText(credit_entry.currency_name)
         self.table.item(row, COLUMN_CURRENCY).setData(
             QtCore.Qt.UserRole,
             currency
         )
-        er = System.exchangeRate(currency.name, self.date_month)
+        er = System.exchangeRate(credit_entry.currency_name, self.date_month)
         self.table.item(row, COLUMN_EXCHANGE_RATE).setText(
             str(FloatWithPrecision(er.rate))
         )
@@ -1056,6 +1059,7 @@ class MonthEndCarryForwardDialog(CustomQDialog):
                         VoucherEntry(
                         account_code=account.code,
                         amount=debit_amount.value,
+                        currency_name=currency.name,
                         brief=brief
                         )
                     )
@@ -1064,6 +1068,7 @@ class MonthEndCarryForwardDialog(CustomQDialog):
                         VoucherEntry(
                             account_code=account.code,
                             amount=credit_amount.value,
+                            currency_name=currency.name,
                             brief=brief
                         )
                     )

@@ -51,7 +51,7 @@ class ExchangeRate:
 
     def __init__(self, exchange_rate):
         self.rate = exchange_rate.rate
-        self.effective_month = exchange_rate.effective_month
+        self.effective_date = exchange_rate.effective_date
 
 
 class Currency:
@@ -122,6 +122,7 @@ class CreditEntry:
 class VoucherEntry(BaseModel):
     account_code: str
     amount: PositiveFloat
+    currency_name: str
     brief: str = ""
 
 
@@ -197,7 +198,7 @@ class System:
             FFDB.db.ExchangeRate(
                 currency=rmb,
                 rate=1.0,
-                effective_month=datetime.date(1970, 1, 1)
+                effective_date=datetime.date(1970, 1, 1)
             )
 
             for major_category, accounts in DEFAULT_ACCOUNTS_2023.items():
@@ -359,7 +360,7 @@ class System:
             currency = FFDB.db.Currency(name=name)
             FFDB.db.ExchangeRate(currency=currency,
                                  rate=1.0,
-                                 effective_month=datetime.date(1970, 1, 1))
+                                 effective_date=datetime.date(1970, 1, 1))
             return Currency(currency)
 
     @staticmethod
@@ -390,10 +391,7 @@ class System:
             currency.delete()
 
     @staticmethod
-    def createExchangeRate(currency_name: str, rate: float, effective_month: datetime.date):
-        # hard transfer to month
-        effective_month = month_of_date(effective_month)
-
+    def createExchangeRate(currency_name: str, rate: float, effective_date: datetime.date):
         if currency_name == '人民币':
             raise IllegalOperation('A2.2/1')
 
@@ -403,18 +401,15 @@ class System:
                 raise EntryNotFound(currency_name)
 
             if FFDB.db.ExchangeRate.get(currency=currency,
-                                        effective_month=first_day_of_month(effective_month)):
+                                        effective_date=effective_date):
                 raise IllegalOperation('A2.2/6')
             exchange_rate = FFDB.db.ExchangeRate(currency=currency,
                                                  rate=rate,
-                                                 effective_month=first_day_of_month(effective_month))
+                                                 effective_date=effective_date)
             return ExchangeRate(exchange_rate)
 
     @staticmethod
-    def deleteExchangeRate(currency_name: str, effective_month: datetime.date):
-        # hard transfer to month
-        effective_month = month_of_date(effective_month)
-
+    def deleteExchangeRate(currency_name: str, effective_date: datetime.date):
         if currency_name == '人民币':
             raise IllegalOperation('A2.2/1')
 
@@ -424,10 +419,10 @@ class System:
                 raise EntryNotFound(currency_name)
 
             er = FFDB.db.ExchangeRate.get(currency=currency,
-                                          effective_month=effective_month)
+                                          effective_date=effective_date)
 
             if er is None:
-                raise EntryNotFound(currency_name, effective_month)
+                raise EntryNotFound(currency_name, effective_date)
 
             if er.debit_entries or er.credit_entries:
                 raise IllegalOperation('A2.1/3')
@@ -442,7 +437,7 @@ class System:
                 raise EntryNotFound(currency_name)
 
             exchange_rates = currency.exchange_rates.select().order_by(
-                FFDB.db.ExchangeRate.effective_month.desc()
+                FFDB.db.ExchangeRate.effective_date.desc()
             )
             return list((ExchangeRate(er) for er in exchange_rates))
 
@@ -453,8 +448,8 @@ class System:
             if currency is None:
                 raise EntryNotFound(currency_name)
 
-            er = currency.exchange_rates.select(lambda er: er.effective_month <= date).order_by(
-                FFDB.db.ExchangeRate.effective_month.desc()
+            er = currency.exchange_rates.select(lambda er: er.effective_date <= date).order_by(
+                FFDB.db.ExchangeRate.effective_date.desc()
             ).first()
             if er is None:
                 return None
@@ -540,9 +535,9 @@ class System:
                 if account.currency is None:
                     raise IllegalOperation('A2.1/1')
 
-                currency = FFDB.db.Currency.get(name=account.currency.name)
-                er = currency.exchange_rates.select(lambda er: er.effective_month <= voucher.date).order_by(
-                    FFDB.db.ExchangeRate.effective_month.desc()
+                currency = FFDB.db.Currency.get(name=entry.currency_name)
+                er = currency.exchange_rates.select(lambda er: er.effective_date <= voucher.date).order_by(
+                    FFDB.db.ExchangeRate.effective_date.desc()
                 ).first()
                 FFDB.db.DebitEntry(voucher=voucher,
                                    account=account,
@@ -557,9 +552,9 @@ class System:
                 if account.currency is None:
                     raise IllegalOperation('A2.1/1')
 
-                currency = FFDB.db.Currency.get(name=account.currency.name)
-                er = currency.exchange_rates.select(lambda er: er.effective_month <= voucher.date).order_by(
-                    FFDB.db.ExchangeRate.effective_month.desc()
+                currency = FFDB.db.Currency.get(name=entry.currency_name)
+                er = currency.exchange_rates.select(lambda er: er.effective_date <= voucher.date).order_by(
+                    FFDB.db.ExchangeRate.effective_date.desc()
                 ).first()
                 FFDB.db.CreditEntry(voucher=voucher,
                                     account=account,
@@ -637,17 +632,17 @@ class System:
             profit_remains = FloatWithPrecision(0.0)
             for code, amount in debit_credit_amounts.items():
                 if amount > FloatWithPrecision(0.0):
-                    credit_entries.append(VoucherEntry(account_code=code, amount=amount.value))
+                    credit_entries.append(VoucherEntry(account_code=code, amount=amount.value, currency_name='人民币'))
                 elif amount < FloatWithPrecision(0.0):
-                    debit_entries.append(VoucherEntry(account_code=code, amount=abs(amount.value)))
+                    debit_entries.append(VoucherEntry(account_code=code, amount=abs(amount.value), currency_name='人民币'))
                 # !else
                 profit_remains += amount
             # !for
 
             if profit_remains > 0.0:
-                debit_entries.append(VoucherEntry(account_code='4103', amount=profit_remains.value))
+                debit_entries.append(VoucherEntry(account_code='4103', amount=profit_remains.value, currency_name='人民币'))
             elif profit_remains < 0.0:
-                credit_entries.append(VoucherEntry(account_code='4103', amount=abs(profit_remains.value)))
+                credit_entries.append(VoucherEntry(account_code='4103', amount=abs(profit_remains.value), currency_name='人民币'))
             # !if
             return debit_entries, credit_entries
 
@@ -672,11 +667,11 @@ class System:
             # 1for
 
             if profit_remains > 0.0:
-                debit_entries.append(VoucherEntry(account_code='4103', amount=profit_remains.value))
-                credit_entries.append(VoucherEntry(account_code='4104.06', amount=profit_remains.value))
+                debit_entries.append(VoucherEntry(account_code='4103', amount=profit_remains.value, currency_name="人民币"))
+                credit_entries.append(VoucherEntry(account_code='4104.06', amount=profit_remains.value, currency_name="人民币"))
             elif profit_remains < 0.0:
-                credit_entries.append(VoucherEntry(account_code='4103', amount=abs(profit_remains.value)))
-                debit_entries.append(VoucherEntry(account_code='4104.06', amount=abs(profit_remains.value)))
+                credit_entries.append(VoucherEntry(account_code='4103', amount=abs(profit_remains.value), currency_name="人民币"))
+                debit_entries.append(VoucherEntry(account_code='4104.06', amount=abs(profit_remains.value), currency_name="人民币"))
             # !if
             return debit_entries, credit_entries
 

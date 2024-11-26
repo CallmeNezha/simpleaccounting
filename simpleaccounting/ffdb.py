@@ -51,7 +51,7 @@ class FFDB:
             id = PrimaryKey(int, auto=True)  # 汇率唯一标识
             currency = Required(Currency)          # 币种
             rate = Required(float)                 # 汇率
-            effective_month = Required(datetime.date) # 生效日期，记录汇率的月份
+            effective_date = Required(datetime.date) # 生效日期
             debit_entries = Set('DebitEntry', reverse='exchange_rate', cascade_delete=False)
             credit_entries = Set('CreditEntry', reverse='exchange_rate', cascade_delete=False)
 
@@ -99,7 +99,6 @@ class FFDB:
             debit_entries = Set(DebitEntry)       # 借方条目集合
             credit_entries = Set(CreditEntry)     # 贷方条目集合
             note = Optional(str)                  # 备注
-
 
         class Shadow_EndingBalance(db.Entity):
             id = PrimaryKey(int, auto=True)   # 结余唯一标识

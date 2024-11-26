@@ -22,6 +22,8 @@ from simpleaccounting.tools.dateutil import months_between, last_day_of_month, l
 from simpleaccounting.app.system import System
 from simpleaccounting.widgets.voucheredit import VoucherEditDialog, MonthEndCarryForwardDialog, YearEndCarryForwardDialog
 from simpleaccounting.widgets.subsidiaryledger import SubsidiaryLedgerDialog
+from simpleaccounting.widgets.endingbalance import EndingBalanceDialog
+
 
 class VoucherDialog(CustomQDialog):
 
@@ -69,6 +71,8 @@ class VoucherDialog(CustomQDialog):
         self.btn_forward_month.clicked.connect(self.on_btn_forwardMonthClicked)
         self.btn_subsidiary_ledger = QtWidgets.QPushButton("明细账")
         self.btn_subsidiary_ledger.clicked.connect(self.on_btn_subsidiaryLedgerClicked)
+        self.btn_ending_balance = QtWidgets.QPushButton("期末余额")
+        self.btn_ending_balance.clicked.connect(self.on_btn_endingBalanceClicked)
         self.btn_view = QtWidgets.QPushButton("【Excel】凭证查看")
         # self.btn_view.clicked.connect(self.on_buttonViewClicked)
         grid.addWidget(self.btn_voucher_entry, 3, 0, 1, 2)
@@ -79,6 +83,7 @@ class VoucherDialog(CustomQDialog):
         vbox.addWidget(self.btn_forward_month)
         vbox.addStretch(10)
         vbox.addWidget(self.btn_subsidiary_ledger)
+        vbox.addWidget(self.btn_ending_balance)
         vbox.addWidget(self.btn_view)
         hbox = QtWidgets.QHBoxLayout(self)
         hbox.addWidget(self.list_month)
@@ -145,6 +150,11 @@ class VoucherDialog(CustomQDialog):
 
     def on_btn_subsidiaryLedgerClicked(self):
         dialog = SubsidiaryLedgerDialog()
+        dialog.resize(1600, 600)
+        dialog.exec_()
+
+    def on_btn_endingBalanceClicked(self):
+        dialog = EndingBalanceDialog()
         dialog.resize(1600, 600)
         dialog.exec_()
 

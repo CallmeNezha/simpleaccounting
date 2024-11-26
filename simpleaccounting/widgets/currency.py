@@ -18,7 +18,7 @@ import sys
 import datetime
 from qtpy import QtWidgets, QtGui, QtCore
 from simpleaccounting.app.system import System, IllegalOperation, EntryNotFound
-from simpleaccounting.tools.dateutil import month_of_date
+from simpleaccounting.tools.dateutil import last_day_of_month
 from simpleaccounting.widgets.qwidgets import CustomQDialog, CustomInputDialog, HorizontalSpacer
 
 
@@ -62,24 +62,24 @@ class ExchangeCreateDialog(CustomInputDialog):
     def setupUI(self):
         """"""
         self.setWindowTitle("设置汇率")
-        self.de_month = QtWidgets.QDateEdit()
+        self.de = QtWidgets.QDateEdit()
         self.dspbox_rate = QtWidgets.QDoubleSpinBox()
         self.dspbox_rate.setMinimum(0.0)
         self.dspbox_rate.setMaximum(sys.float_info.max)
         form = QtWidgets.QFormLayout()
-        form.addRow("日期", self.de_month)
+        form.addRow("日期", self.de)
         form.addRow("汇率", self.dspbox_rate)
         vbox = QtWidgets.QVBoxLayout(self)
         vbox.addLayout(form)
         vbox.addWidget(self.button_box)
-        self.de_month.setFocus(QtCore.Qt.FocusReason.OtherFocusReason)
+        self.de.setFocus(QtCore.Qt.FocusReason.OtherFocusReason)
 
     def accept(self):
         """"""
-        date = self.de_month.date()
-        month = month_of_date(datetime.date(date.year(), date.month(), 1))
+        date = self.de.date()
+        date = datetime.date(date.year(), date.month(), date.day())
         rate = self.dspbox_rate.value()
-        if self.on_accept((month, rate)):
+        if self.on_accept((date, rate)):
             super().accept()
 
 
@@ -180,11 +180,10 @@ class CurrencyDialog(CustomQDialog):
             return True
 
         dialog = ExchangeCreateDialog(addExchange)
-        dialog.de_month.setDisplayFormat("yyyy.MM")
 
-        date_until = System.meta().month_until
-        dialog.de_month.setDateRange(datetime.date(1999, 1, 1), date_until)
-        dialog.de_month.setDate(QtCore.QDate(date_until.year, date_until.month, 1))
+        date_until = last_day_of_month(System.meta().month_until)
+        dialog.de.setDateRange(datetime.date(1999, 1, 1), date_until)
+        dialog.de.setDate(date_until)
         dialog.exec_()
 
     def on_deleteExchange(self):
@@ -196,7 +195,11 @@ class CurrencyDialog(CustomQDialog):
             return
 
         date = list(map(int, self.table_exchange.item(row, 0).text().split('.')))
-        date = datetime.date(date[0], date[1], 1)
+        date = datetime.date(date[0], date[1], date[2])
+
+        if date.year == 1970:
+            QtWidgets.QMessageBox.critical(None, "删除失败", "错误代码 A2.2/1：使用中的币种汇率的期间，不可删除。")
+            return
 
         try:
             currency_name = self.list_currency.currentItem().text()
@@ -234,6 +237,6 @@ class CurrencyDialog(CustomQDialog):
         self.table_exchange.setRowCount(len(exchange_rates))
 
         for row, rate in enumerate(exchange_rates):
-            self.table_exchange.setItem(row, 0, QtWidgets.QTableWidgetItem(rate.effective_month.strftime("%Y.%m")))
+            self.table_exchange.setItem(row, 0, QtWidgets.QTableWidgetItem(rate.effective_date.strftime("%Y.%m.%d")))
             self.table_exchange.setItem(row, 1, QtWidgets.QTableWidgetItem(f"{rate.rate:.2f}"))
             row += 1
