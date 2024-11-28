@@ -15,7 +15,7 @@
 """
 
 from qtpy import QtWidgets, QtCore, QtGui
-from simpleaccounting.widgets.qwidgets import CustomInputDialog, CustomQDialog, HorizontalSpacer
+from simpleaccounting.widgets.qwidgets import CustomInputDialog, HorizontalSpacer
 from simpleaccounting.app.system import System, IllegalOperation, EntryNotFound
 
 
@@ -83,7 +83,7 @@ class AccountActivateDialog(CustomInputDialog):
             super().accept()
 
 
-class AccountDialog(CustomQDialog):
+class AccountWidget(QtWidgets.QWidget):
 
     def __init__(self):
         super().__init__()
@@ -151,14 +151,14 @@ class AccountDialog(CustomQDialog):
         self.label_activated_leaf_sub_category = QtWidgets.QLabel()
         self.label_activated_leaf_balance_direction = QtWidgets.QLabel()
         self.label_activated_leaf_currency = QtWidgets.QLabel()
-        self.label_exchange_gains_and_losses = QtWidgets.QLabel()
+        self.label_need_exchange_gains_losses = QtWidgets.QLabel()
         form_activated_leaf_property.addRow("大类", self.label_activated_leaf_major_category)
         form_activated_leaf_property.addRow("类别", self.label_activated_leaf_sub_category)
         form_activated_leaf_property.addRow("代码", self.label_activated_leaf_code)
         form_activated_leaf_property.addRow("名称", self.label_activated_leaf_name)
         form_activated_leaf_property.addRow("余额方向", self.label_activated_leaf_balance_direction)
         form_activated_leaf_property.addRow("币种", self.label_activated_leaf_currency)
-        form_activated_leaf_property.addRow("汇兑损益", self.label_exchange_gains_and_losses)
+        form_activated_leaf_property.addRow("汇兑损益", self.label_need_exchange_gains_losses)
 
         self.stacked = QtWidgets.QStackedWidget()
         self.widget_empty = QtWidgets.QWidget()
@@ -222,7 +222,7 @@ class AccountDialog(CustomQDialog):
                 self.label_leaf_sub_category.setText(account.sub_category)
                 self.button_leaf_activate.setEnabled(True)
                 self.action_create.setEnabled(True)
-                self.action_delete.setEnabled(account.custom)
+                self.action_delete.setEnabled(account.is_custom)
             else:
                 self.stacked.setCurrentWidget(self.widget_activated_leaf_property)
                 self.label_activated_leaf_code.setText(account.code)
@@ -231,7 +231,7 @@ class AccountDialog(CustomQDialog):
                 self.label_activated_leaf_major_category.setText(account.major_category)
                 self.label_activated_leaf_sub_category.setText(account.sub_category)
                 self.label_activated_leaf_currency.setText(currency.name)
-                self.label_exchange_gains_and_losses.setText("是" if account.exchange_gains_and_losses else "否")
+                self.label_need_exchange_gains_losses.setText("是" if account.need_exchange_gains_losses else "否")
                 self.action_create.setEnabled(False)
                 self.action_delete.setEnabled(False)
 
@@ -337,13 +337,13 @@ class AccountDialog(CustomQDialog):
         if account.currency:
             return
 
-        def activate(currency: str, exchange_gains_and_losses: bool):
+        def activate(currency: str, need_exchange_gains_losses: bool):
             item = self.tree.currentItem()
             if not item:
                 return False
             # !if
             account = item.data(0, QtCore.Qt.UserRole)
-            System.setAccountCurrency(account.code, currency, exchange_gains_and_losses)
+            System.setAccountCurrency(account.code, currency, need_exchange_gains_losses)
             # update item in user role
             item.setData(0, QtCore.Qt.UserRole, System.account(account.code))
             self.on_select(item, item)

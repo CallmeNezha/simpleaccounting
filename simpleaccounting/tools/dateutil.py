@@ -17,6 +17,7 @@
 import datetime
 import calendar
 from dateutil.relativedelta import relativedelta
+from qtpy import QtCore
 
 
 def months_between(start_date: datetime.date, end_date: datetime.date) -> int:
@@ -98,3 +99,6 @@ def first_day_of_year(date: datetime.date) -> datetime.date:
 
 def last_day_of_year(date: datetime.date) -> datetime.date:
     return datetime.date(date.year, 12, 31)
+
+def qdate_to_date(qdate: QtCore.QDate) -> datetime.date:
+    return datetime.date(qdate.year(), qdate.month(), qdate.day())

@@ -34,7 +34,7 @@ class FFDB:
         db = Database()
 
 
-        class MetaData(db.Entity):
+        class Meta(db.Entity):
             id = PrimaryKey(int, auto=True)
             version = Required(str)
             company = Required(str)
@@ -44,6 +44,7 @@ class FFDB:
         class Currency(db.Entity):
             id = PrimaryKey(int, auto=True)
             name = Required(str, unique=True)
+            is_local = Required(bool, default=False)
             accounts = Set('Account', reverse='currency', cascade_delete=False)
             exchange_rates = Set('ExchangeRate', reverse='currency')
 
@@ -52,8 +53,6 @@ class FFDB:
             currency = Required(Currency)          # 币种
             rate = Required(float)                 # 汇率
             effective_date = Required(datetime.date) # 生效日期
-            debit_entries = Set('DebitEntry', reverse='exchange_rate', cascade_delete=False)
-            credit_entries = Set('CreditEntry', reverse='exchange_rate', cascade_delete=False)
 
         class Account(db.Entity):
             id = PrimaryKey(int, auto=True)  # 科目的唯一标识
@@ -64,21 +63,21 @@ class FFDB:
             sub_category = Required(str)           # 科目小类
             direction = Required(str)              # 借或贷
             currency = Optional(Currency)          # 币种
-            exchange_gains_and_losses = Required(bool, default=False)    # 是否加入汇兑损益
-            custom = Required(bool, default=True)                      # 是否为用户自定义科目
-            parent = Optional('Account')                               # 父科目，可以为 None，表示顶级科目
-            children = Set('Account', reverse='parent')        # 子科目集合，reverse='parent' 表示从子科目反向查找父科目
+            need_exchange_gains_losses = Required(bool, default=False)        # 是否加入汇兑损益
+            is_custom = Required(bool, default=True)                          # 是否为用户自定义科目
+            parent = Optional('Account')                                      # 父科目，可以为 None，表示顶级科目
+            children = Set('Account', reverse='parent')               # 子科目集合，reverse='parent' 表示从子科目反向查找父科目
             debit_entries = Set('DebitEntry', reverse='account')      # 借方条目集合
             credit_entries = Set('CreditEntry', reverse='account')    # 贷方条目集合
-            ending_balances = Set('Shadow_EndingBalance', reverse='account') # 结余条目集合
 
         # 定义 DebitEntry 实体，表示借方的具体条目
         class DebitEntry(db.Entity):
             id = PrimaryKey(int, auto=True)
             voucher = Required('Voucher')   # 关联的凭证
             account = Required(Account)     # 借方关联的科目
+            currency = Required(str)        # 当时币种名称
             amount = Required(float)        # 借方币种金额
-            exchange_rate = Required(ExchangeRate) # 借方汇率
+            exchange_rate = Required(float) # 借方当时汇率
             brief = Optional(str)           # 凭证描述
 
         # 定义 CreditEntry 实体，表示贷方的具体条目
@@ -86,97 +85,25 @@ class FFDB:
             id = PrimaryKey(int, auto=True)
             voucher = Required('Voucher')   # 关联的凭证
             account = Required(Account)     # 贷方关联的科目
+            currency = Required(str)        # 当时币种名称
             amount = Required(float)        # 贷方币种金额
-            exchange_rate = Required(ExchangeRate) # 贷方汇率
+            exchange_rate = Required(float) # 贷方当时汇率
             brief = Optional(str)           # 凭证描述
 
         # 定义 Voucher 实体类
         class Voucher(db.Entity):
-            id = PrimaryKey(int, auto=True) # 凭证的唯一编号
-            number = Required(str, unique=True)   # 凭证编号，必须唯一
-            category = Required(str, default='记账')   # 凭证类型
-            date = Required(datetime.date)        # 凭证日期
-            debit_entries = Set(DebitEntry)       # 借方条目集合
-            credit_entries = Set(CreditEntry)     # 贷方条目集合
-            note = Optional(str)                  # 备注
-
-        class Shadow_EndingBalance(db.Entity):
-            id = PrimaryKey(int, auto=True)   # 结余唯一标识
-            account = Required(Account)             # 关联的科目
-            currency_amount = Required(float)       # 币种金额
-            local_currency_amount = Required(float) # 本位币金额
-            month = Required(datetime.date)          # 结余年月
+            id = PrimaryKey(int, auto=True)    # 凭证的唯一编号
+            number = Required(str, unique=True)      # 凭证编号，必须唯一
+            category = Required(str, default='记账')  # 凭证类型  # 记账 # 月末结转 # 往年结转
+            date = Required(datetime.date)           # 凭证日期
+            debit_entries = Set(DebitEntry)          # 借方条目集合
+            credit_entries = Set(CreditEntry)        # 贷方条目集合
 
         # -------- User data
         class MRU_Account(db.Entity):
             id = PrimaryKey(int, auto=True)
             account_code = Required(str, unique=True)
             hits = Required(int, default=0)
-
-        class OperationLog(db.Entity):
-            id = PrimaryKey(int, auto=True)
-            entity_name = Required(str)
-            operation_type = Required(str)
-            commited = Required(bool, default=False)
-            entity_id = Required(int)
-            timestamp = Required(datetime.datetime)
-            details = Required(str)
-
-
-        # commited_cache = defaultdict(dict)
-
-        # Generic function to attach event hooks to all entities
-        # def attach_logging_hooks(db):
-        #
-        #     import types
-        #
-        #     for _, entity in db.entities.items():
-        #         # Hook for insert
-        #         def details(instance):
-        #             return ','.join(f"{attr.name}={getattr(instance, attr.name)!r}" for attr in instance._attrs_ if attr.is_basic)
-        #
-        #         def log_insert(instance):
-        #             if isinstance(instance, OperationLog):
-        #                 return
-        #             operation_log = OperationLog(entity_name=instance.__class__.__name__, operation_type='INSERT',
-        #                          entity_id=instance.id, timestamp=datetime.datetime.now(),
-        #                          details=details(instance),
-        #                          commited=True)
-        #             operation_log.flush()
-        #
-        #         def log_update(instance):
-        #             if isinstance(instance, OperationLog):
-        #                 return
-        #             operation_log = OperationLog(entity_name=instance.__class__.__name__, operation_type='UPDATE',
-        #                          entity_id=instance.id, timestamp=datetime.datetime.now(),
-        #                          details=details(instance),
-        #                          commited=True)
-        #             operation_log.flush()
-        #
-        #         def log_before_delete(instance):
-        #             if isinstance(instance, OperationLog):
-        #                 return
-        #             operation_log = OperationLog(entity_name=instance.__class__.__name__, operation_type='DELETE',
-        #                          entity_id=instance.id, timestamp=datetime.datetime.now(),
-        #                          details=details(instance),
-        #                          commited=False)
-        #             operation_log.flush()
-        #             commited_cache[instance.__class__.__name__][instance.id] = operation_log.id
-        #
-        #         def log_after_delete(instance):
-        #             if isinstance(instance, OperationLog):
-        #                 return
-        #             operation_log = OperationLog.get(id=commited_cache[instance.__class__.__name__][instance.id])
-        #             operation_log.commited = True
-        #             operation_log.flush()
-        #
-        #         entity.before_delete = log_before_delete
-        #         entity.after_delete = log_after_delete
-        #         entity.after_insert = log_insert
-        #         entity.after_update = log_update
-        #
-        # # Attach the logging hooks
-        # attach_logging_hooks(db)
 
         db.bind(provider='sqlite', filename=str(filename), create_db=True)
         db.generate_mapping(create_tables=True)

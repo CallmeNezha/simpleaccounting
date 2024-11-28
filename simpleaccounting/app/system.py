@@ -16,13 +16,14 @@
 
 import pathlib
 import datetime
+import typing
 
 from typing import Optional
 from pydantic import BaseModel, PositiveFloat, ValidationError
 from collections import defaultdict
 
-from simpleaccounting.tools.mymath import FloatWithPrecision
 from simpleaccounting.ffdb import FFDB
+from simpleaccounting.tools.mymath import FloatWithPrecision
 from simpleaccounting.defaults import DEFAULT_ACCOUNTS_2023
 from simpleaccounting.tools.dateutil import last_day_of_previous_month, first_day_of_month, last_day_of_month, \
     month_of_date, first_day_of_year, last_day_of_year, first_day_of_next_month
@@ -40,45 +41,47 @@ class EntryNotFound(IllegalOperation):
 # models
 class Meta:
     """"""
-    def __init__(self, meta):
-        self.version = meta.version
-        self.company = meta.company
-        self.month_from = meta.month_from
-        self.month_until = meta.month_until
+    def __init__(self, meta: 'FFDB.db.Meta'):
+        self.version: str = meta.version
+        self.company: str = meta.company
+        self.month_from: datetime.date = meta.month_from
+        self.month_until: datetime.date = meta.month_until
 
 
 class ExchangeRate:
 
-    def __init__(self, exchange_rate):
-        self.rate = exchange_rate.rate
-        self.effective_date = exchange_rate.effective_date
+    def __init__(self, exchange_rate: 'FFDB.db.ExchangeRate'):
+        self.rate: FloatWithPrecision = FloatWithPrecision(exchange_rate.rate)
+        self.effective_date: datetime.date = exchange_rate.effective_date
 
 
 class Currency:
     """"""
-    def __init__(self, currency):
-        self.name = currency.name
+    def __init__(self, currency: 'FFDB.db.Currency'):
+        self.name: str = currency.name
+        self.is_local: bool = currency.is_local
 
     @property
-    def exchange_rates(self):
+    def exchange_rates(self) -> list[ExchangeRate]:
         with FFDB.db_session:
             return [ExchangeRate(er) for er in FFDB.db.Currency.get(name=self.name).exchange_rates]
 
 
 class Account:
     """"""
-    def __init__(self, account):
-        self.code = account.code
-        self.name = account.name
-        self.qualname = account.qualname
-        self.major_category = account.major_category
-        self.sub_category = account.sub_category
-        self.direction = account.direction
-        self.custom = account.custom
-        self.exchange_gains_and_losses = account.exchange_gains_and_losses
+
+    def __init__(self, account: 'FFDB.db.Account'):
+        self.code: str = account.code
+        self.name: str = account.name
+        self.qualname: str = account.qualname
+        self.major_category: str = account.major_category
+        self.sub_category: str = account.sub_category
+        self.direction: str = account.direction
+        self.is_custom: bool = account.is_custom
+        self.need_exchange_gains_losses: bool = account.need_exchange_gains_losses
 
     @property
-    def parent(self):
+    def parent(self) -> typing.Optional['Account']:
         with FFDB.db_session:
             parent = FFDB.db.Account.get(code=self.code).parent
             if parent is None:
@@ -87,12 +90,12 @@ class Account:
                 return Account(parent)
 
     @property
-    def children(self):
+    def children(self) -> list['Account']:
         with FFDB.db_session:
             return [Account(a) for a in FFDB.db.Account.get(code=self.code).children]
 
     @property
-    def currency(self):
+    def currency(self) -> typing.Optional['Currency']:
         with FFDB.db_session:
             currency = FFDB.db.Account.get(code=self.code).currency
             if currency is None:
@@ -103,37 +106,38 @@ class Account:
 
 class DebitEntry:
     """"""
-    def __init__(self, debitEntry):
-        self.account = Account(debitEntry.account)
-        self.amount = debitEntry.amount
-        self.exchange_rate = ExchangeRate(debitEntry.exchange_rate)
-        self.brief = debitEntry.brief
+    def __init__(self, debit: 'FFDB.db.DebitEntry'):
+        self.account: Account = Account(debit.account)
+        self.currency: str = debit.currency
+        self.amount: FloatWithPrecision = FloatWithPrecision(debit.amount)
+        self.exchange_rate: FloatWithPrecision = FloatWithPrecision(debit.exchange_rate)
+        self.brief: Optional[str] = debit.brief
 
 
 class CreditEntry:
     """"""
-    def __init__(self, creditEntry):
-        self.account = Account(creditEntry.account)
-        self.amount = creditEntry.amount
-        self.exchange_rate = ExchangeRate(creditEntry.exchange_rate)
-        self.brief = creditEntry.brief
+    def __init__(self, credit: 'FFDB.db.CreditEntry'):
+        self.account: Account = Account(credit.account)
+        self.currency: str = credit.currency
+        self.amount: FloatWithPrecision = FloatWithPrecision(credit.amount)
+        self.exchange_rate: FloatWithPrecision = FloatWithPrecision(credit.exchange_rate)
+        self.brief: Optional[str] = credit.brief
 
 
 class VoucherEntry(BaseModel):
     account_code: str
     amount: PositiveFloat
-    currency_name: str
+    currency: str
+    exchange_rate: PositiveFloat
     brief: str = ""
 
 
 class Voucher:
 
-    def __init__(self, voucher):
-        self.number = voucher.number
-        self.category = voucher.category
+    def __init__(self, voucher: 'FFDB.db.Voucher'):
+        self.number: str = voucher.number
+        self.category: str = voucher.category
         self.date = voucher.date
-        self.note = voucher.note
-
         self.debit_entries = []
         self.credit_entries = []
 
@@ -184,7 +188,7 @@ class System:
         FFDB.bindDatabase(filename)
 
         with FFDB.db_session:
-            FFDB.db.MetaData(
+            FFDB.db.Meta(
                 version='2024.11.07',
                 company=filename.stem,
                 month_from=month,
@@ -192,7 +196,8 @@ class System:
             )
 
             rmb = FFDB.db.Currency(
-                name='人民币'
+                name='人民币',
+                is_local=True
             )
 
             FFDB.db.ExchangeRate(
@@ -214,7 +219,7 @@ class System:
                             sub_category=account['科目类别'],
                             direction=account['余额方向'],
                             parent=parent,
-                            custom=False
+                            is_custom=False
                         )
 
             for account in FFDB.db.Account.select():
@@ -234,12 +239,12 @@ class System:
     @staticmethod
     def meta() -> Meta:
         with FFDB.db_session:
-            return Meta(FFDB.db.MetaData.get())
+            return Meta(FFDB.db.Meta.get())
 
     @staticmethod
     def forwardToNextMonth():
         with FFDB.db_session:
-            meta = FFDB.db.MetaData.select().first()
+            meta = FFDB.db.Meta.select().first()
             meta.month_until = month_of_date(first_day_of_next_month(meta.month_until))
 
     @staticmethod
@@ -277,7 +282,8 @@ class System:
                 major_category=parent.major_category,
                 sub_category=parent.sub_category,
                 direction=parent.direction,
-                parent=parent
+                parent=parent,
+                is_custom=True
             )
         # !with
         return Account(account)
@@ -290,7 +296,7 @@ class System:
                 raise EntryNotFound(code)
             if account.currency:
                 raise IllegalOperation("A1.2.1/5")
-            elif not account.custom:
+            elif not account.is_custom:
                 raise IllegalOperation("A1.1/5")
             elif account.children:
                 raise IllegalOperation("A1.2.1/6")
@@ -331,7 +337,7 @@ class System:
             return list((Account(a) for a in FFDB.db.Account.select()))
 
     @staticmethod
-    def setAccountCurrency(account_code: str, currency_name: str, exchange_gains_and_losses: bool=False):
+    def setAccountCurrency(account_code: str, currency_name: str, need_exchange_gains_losses: bool=False):
         with FFDB.db_session:
             account = FFDB.db.Account.get(code=account_code)
             if account is None:
@@ -340,7 +346,7 @@ class System:
                 raise IllegalOperation('A2.1/1')
             elif account.children:
                 raise IllegalOperation('A2.1/4')
-            elif exchange_gains_and_losses:
+            elif need_exchange_gains_losses:
                 if currency_name == '人民币':
                     raise IllegalOperation('A5.1/1')
                 elif account.children:
@@ -350,7 +356,7 @@ class System:
             if currency is None:
                 raise EntryNotFound(currency_name)
             account.currency = currency
-            account.exchange_gains_and_losses = exchange_gains_and_losses
+            account.need_exchange_gains_losses = need_exchange_gains_losses
 
     @staticmethod
     def createCurrency(name: str) -> Currency:
@@ -424,9 +430,6 @@ class System:
             if er is None:
                 raise EntryNotFound(currency_name, effective_date)
 
-            if er.debit_entries or er.credit_entries:
-                raise IllegalOperation('A2.1/3')
-
             er.delete()
 
     @staticmethod
@@ -468,12 +471,12 @@ class System:
             return [Voucher(v) for v in FFDB.db.Voucher.select(filter)]
 
     @staticmethod
-    def createVoucher(number: str, date: datetime.date, category='记账', note: str='') -> 'FFDB.db.Voucher':
+    def createVoucher(number: str, date: datetime.date, category='记账') -> 'FFDB.db.Voucher':
         with FFDB.db_session:
             if FFDB.db.Voucher.get(number=number):
                 raise IllegalOperation('A3.2/4')
 
-            voucher = FFDB.db.Voucher(number=number, date=date, category=category, note=note)
+            voucher = FFDB.db.Voucher(number=number, date=date, category=category)
             return Voucher(voucher)
 
     @staticmethod
@@ -488,14 +491,6 @@ class System:
                 raise IllegalOperation("Can't set date outside voucher's month")
             #
             voucher.date = date
-
-    @staticmethod
-    def setVoucherNote(voucher_number: str, note: str):
-        with FFDB.db_session:
-            voucher = FFDB.db.Voucher.get(number=voucher_number)
-            if voucher is None:
-                raise EntryNotFound(voucher_number)
-            voucher.note = note
 
     @staticmethod
     def changeVoucherNumber(old_voucher_number: str, new_voucher_number: str):
@@ -535,16 +530,18 @@ class System:
                 if account.currency is None:
                     raise IllegalOperation('A2.1/1')
 
-                currency = FFDB.db.Currency.get(name=entry.currency_name)
-                er = currency.exchange_rates.select(lambda er: er.effective_date <= voucher.date).order_by(
-                    FFDB.db.ExchangeRate.effective_date.desc()
-                ).first()
+                currency = FFDB.db.Currency.get(name=entry.currency)
+                assert currency is not None
+                if currency is None:
+                    raise IllegalOperation('A2.1/1')
+
                 FFDB.db.DebitEntry(voucher=voucher,
                                    account=account,
+                                   currency=entry.currency,
                                    amount=entry.amount,
-                                   exchange_rate=er,
+                                   exchange_rate=entry.exchange_rate,
                                    brief=entry.brief)
-                sum_debit += entry.amount * er.rate
+                sum_debit += entry.amount * entry.exchange_rate
 
             for entry in creditEntries:
                 account = FFDB.db.Account.get(code=entry.account_code)
@@ -552,16 +549,18 @@ class System:
                 if account.currency is None:
                     raise IllegalOperation('A2.1/1')
 
-                currency = FFDB.db.Currency.get(name=entry.currency_name)
-                er = currency.exchange_rates.select(lambda er: er.effective_date <= voucher.date).order_by(
-                    FFDB.db.ExchangeRate.effective_date.desc()
-                ).first()
+                currency = FFDB.db.Currency.get(name=entry.currency)
+                assert currency is not None
+                if currency is None:
+                    raise IllegalOperation('A2.1/1')
+
                 FFDB.db.CreditEntry(voucher=voucher,
                                     account=account,
+                                    currency=entry.currency,
                                     amount=entry.amount,
-                                    exchange_rate=er,
+                                    exchange_rate=entry.exchange_rate,
                                     brief=entry.brief)
-                sum_credit += entry.amount * er.rate
+                sum_credit += entry.amount * entry.exchange_rate
 
             if sum_debit != sum_credit:
                 raise IllegalOperation('A3.2/2')
@@ -569,7 +568,7 @@ class System:
     @staticmethod
     def increaseMRUAccount(account_code: str):
         with FFDB.db_session:
-            mru = FFDB.db.MRU_Account.get(account_code)
+            mru = FFDB.db.MRU_Account.get(account_code=account_code)
             if mru is None:
                 mru = FFDB.db.MRU_Account(
                     account_code=account_code
@@ -580,7 +579,7 @@ class System:
     def topMRUAccounts(N: int):
         with FFDB.db_session:
             return [
-                Account(a) for a in FFDB.db.MRU_Account.select().sort_by(
+                Account(FFDB.db.Account.get(code=mru_account.account_code)) for mru_account in FFDB.db.MRU_Account.select().sort_by(
                 FFDB.db.MRU_Account.hits.desc()).limit(N)
             ]
 
@@ -632,17 +631,17 @@ class System:
             profit_remains = FloatWithPrecision(0.0)
             for code, amount in debit_credit_amounts.items():
                 if amount > FloatWithPrecision(0.0):
-                    credit_entries.append(VoucherEntry(account_code=code, amount=amount.value, currency_name='人民币'))
+                    credit_entries.append(VoucherEntry(account_code=code, amount=amount.value, currency='人民币', exchange_rate=1.0))
                 elif amount < FloatWithPrecision(0.0):
-                    debit_entries.append(VoucherEntry(account_code=code, amount=abs(amount.value), currency_name='人民币'))
+                    debit_entries.append(VoucherEntry(account_code=code, amount=abs(amount.value), currency='人民币', exchange_rate=1.0))
                 # !else
                 profit_remains += amount
             # !for
 
             if profit_remains > 0.0:
-                debit_entries.append(VoucherEntry(account_code='4103', amount=profit_remains.value, currency_name='人民币'))
+                debit_entries.append(VoucherEntry(account_code='4103', amount=profit_remains.value, currency='人民币', exchange_rate=1.0))
             elif profit_remains < 0.0:
-                credit_entries.append(VoucherEntry(account_code='4103', amount=abs(profit_remains.value), currency_name='人民币'))
+                credit_entries.append(VoucherEntry(account_code='4103', amount=abs(profit_remains.value), currency='人民币', exchange_rate=1.0))
             # !if
             return debit_entries, credit_entries
 
@@ -667,11 +666,11 @@ class System:
             # 1for
 
             if profit_remains > 0.0:
-                debit_entries.append(VoucherEntry(account_code='4103', amount=profit_remains.value, currency_name="人民币"))
-                credit_entries.append(VoucherEntry(account_code='4104.06', amount=profit_remains.value, currency_name="人民币"))
+                debit_entries.append(VoucherEntry(account_code='4103', amount=profit_remains.value, currency="人民币", exchange_rate=1.0))
+                credit_entries.append(VoucherEntry(account_code='4104.06', amount=profit_remains.value, currency="人民币", exchange_rate=1.0))
             elif profit_remains < 0.0:
-                credit_entries.append(VoucherEntry(account_code='4103', amount=abs(profit_remains.value), currency_name="人民币"))
-                debit_entries.append(VoucherEntry(account_code='4104.06', amount=abs(profit_remains.value), currency_name="人民币"))
+                credit_entries.append(VoucherEntry(account_code='4103', amount=abs(profit_remains.value), currency="人民币", exchange_rate=1.0))
+                debit_entries.append(VoucherEntry(account_code='4104.06', amount=abs(profit_remains.value), currency="人民币", exchange_rate=1.0))
             # !if
             return debit_entries, credit_entries
 

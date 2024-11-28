@@ -89,6 +89,10 @@ class FloatWithPrecision:
         formatted_value = f"{self.value:,.{self.precision}f}"
         return formatted_value
 
+    def __repr__(self):
+        formatted_value = f"<FloatWithPrecision {self.value:,.{self.precision}f}>"
+        return formatted_value
+
     @classmethod
     def from_string(cls, value_str, precision = 2):
         # 从带逗号的字符串转换为 FloatWithPrecision 实例

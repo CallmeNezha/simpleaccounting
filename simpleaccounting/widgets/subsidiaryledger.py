@@ -21,7 +21,7 @@ from simpleaccounting.tools.dateutil import last_day_of_month, first_day_of_mont
 from simpleaccounting.widgets.qwidgets import CustomQDialog, HorizontalSpacer
 from simpleaccounting.tools.mymath import FloatWithPrecision
 from simpleaccounting.tools import stringscores
-from simpleaccounting.widgets.voucheredit import VoucherEditDialog, AccountSelectDialog
+from simpleaccounting.widgets.voucheredit import VoucherEditWidget, AccountSelectDialog
 
 
 COLUMNS = ["日期", "凭证记字号", "摘要", "科目名称", "借方币种金额", "贷方币种金额", "币种", "汇率", "借方金额", "贷方金额", "标签"]
@@ -121,7 +121,9 @@ class SubsidaryLedgerTableWidget(QtWidgets.QTableWidget):
             self.insertRow(0)
 
 
-class SubsidiaryLedgerDialog(CustomQDialog):
+class SubsidiaryLedgerWidget(QtWidgets.QWidget):
+
+    signal_view_voucher = QtCore.Signal(datetime.date, str)
 
     def __init__(self):
         super().__init__()
@@ -224,25 +226,25 @@ class SubsidiaryLedgerDialog(CustomQDialog):
             )
             self.table.item(i, COLUMN_BRIEF).setText(entry.brief)
             self.table.item(i, COLUMN_ACCOUNT).setText(entry.account.qualname)
-            self.table.item(i, COLUMN_CURRENCY).setText(entry.account.currency.name)
-            self.table.item(i, COLUMN_EXCHANGE_RATE).setText(str(FloatWithPrecision(entry.exchange_rate.rate)))
+            self.table.item(i, COLUMN_CURRENCY).setText(entry.currency)
+            self.table.item(i, COLUMN_EXCHANGE_RATE).setText(str(entry.exchange_rate))
             if direction == 'debit':
-                self.table.item(i, COLUMN_DEBIT_CURRENCY_AMOUNT).setText(str(FloatWithPrecision(entry.amount)))
+                self.table.item(i, COLUMN_DEBIT_CURRENCY_AMOUNT).setText(str(entry.amount))
                 self.table.item(i, COLUMN_DEBIT_LOCAL_AMOUNT).setText(
-                    str(FloatWithPrecision(entry.amount * entry.exchange_rate.rate))
+                    str(entry.amount * entry.exchange_rate)
                 )
                 self.table.item(i, COLUMN_DEBIT_LOCAL_AMOUNT).setData(
                     QtCore.Qt.ItemDataRole.UserRole,
-                    FloatWithPrecision(entry.amount * entry.exchange_rate.rate)
+                    entry.amount * entry.exchange_rate
                 )
             else:
-                self.table.item(i, COLUMN_CREDIT_CURRENCY_AMOUNT).setText(str(FloatWithPrecision(entry.amount)))
+                self.table.item(i, COLUMN_CREDIT_CURRENCY_AMOUNT).setText(str(entry.amount))
                 self.table.item(i, COLUMN_CREDIT_LOCAL_AMOUNT).setText(
-                    str(FloatWithPrecision(entry.amount * entry.exchange_rate.rate))
+                    str(entry.amount * entry.exchange_rate)
                 )
                 self.table.item(i, COLUMN_CREDIT_LOCAL_AMOUNT).setData(
                     QtCore.Qt.ItemDataRole.UserRole,
-                    FloatWithPrecision(entry.amount * entry.exchange_rate.rate)
+                    entry.amount * entry.exchange_rate
                 )
 
         self.table.resizeRowsToContents()
@@ -252,7 +254,8 @@ class SubsidiaryLedgerDialog(CustomQDialog):
     def refreshDebitCreditTotal(self):
         debit_total = FloatWithPrecision(0.0)
         credit_total = FloatWithPrecision(0.0)
-        for row in range(self.table.rowCount() - 1):
+        last_row = self.table.rowCount() - 1
+        for row in range(last_row):
             debit_currency_amount = self.table.item(row, COLUMN_DEBIT_LOCAL_AMOUNT).data(QtCore.Qt.ItemDataRole.UserRole)
             credit_currency_amount = self.table.item(row, COLUMN_CREDIT_LOCAL_AMOUNT).data(QtCore.Qt.ItemDataRole.UserRole)
             if debit_currency_amount:
@@ -260,11 +263,10 @@ class SubsidiaryLedgerDialog(CustomQDialog):
             if credit_currency_amount:
                 credit_total += credit_currency_amount
         # 1for
-        self.table.item(self.table.rowCount() - 1, COLUMN_DEBIT_LOCAL_AMOUNT).setText(str(debit_total))
-        self.table.item(self.table.rowCount() - 1, COLUMN_DEBIT_LOCAL_AMOUNT).setData(QtCore.Qt.ItemDataRole.UserRole, debit_total)
-        self.table.item(self.table.rowCount() - 1, COLUMN_CREDIT_LOCAL_AMOUNT).setText(str(credit_total))
-        self.table.item(self.table.rowCount() - 1, COLUMN_CREDIT_LOCAL_AMOUNT).setData(QtCore.Qt.ItemDataRole.UserRole, credit_total)
-
+        self.table.item(last_row, COLUMN_DEBIT_LOCAL_AMOUNT).setText(str(debit_total))
+        self.table.item(last_row, COLUMN_DEBIT_LOCAL_AMOUNT).setData(QtCore.Qt.ItemDataRole.UserRole, debit_total)
+        self.table.item(last_row, COLUMN_CREDIT_LOCAL_AMOUNT).setText(str(credit_total))
+        self.table.item(last_row, COLUMN_CREDIT_LOCAL_AMOUNT).setData(QtCore.Qt.ItemDataRole.UserRole, credit_total)
 
     def on_cbox_accountEditingFinished(self):
         editedText = self.cbox_account.lineEdit().text()
@@ -302,12 +304,7 @@ class SubsidiaryLedgerDialog(CustomQDialog):
         if item.column() == COLUMN_VOUCHER_NUMBER:
             voucher = item.data(QtCore.Qt.UserRole)
             if voucher:
-                dialog = VoucherEditDialog(month_of_date(voucher.date))
-                dialog.setReadOnly(True)
-                dialog.setCurrentVoucher(voucher.number)
-                dialog.resize(1600, 600)
-                dialog.exec_()
-
+                self.signal_view_voucher.emit(voucher.date, voucher.number)
 
     def on_actionPrintTriggered(self):
         print("打印明细账")

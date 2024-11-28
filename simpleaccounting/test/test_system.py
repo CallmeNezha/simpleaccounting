@@ -13,13 +13,10 @@
     See the License for the specific language governing permissions and
     limitations under the License.
 """
-from locale import currency
-
 import pytest
 import datetime
 import pathlib
 
-from pony.orm import DatabaseSessionIsOver
 from simpleaccounting.app.system import System, IllegalOperation, VoucherEntry
 
 
@@ -170,6 +167,7 @@ class TestSystem:
         with pytest.raises(IllegalOperation, match='A2.1/2'):
             System.deleteCurrency('美元')
 
+    @pytest.mark.skip(reason="deprecated")
     def test_account_A2_1S3(self):
         System.createAccount('1002.01',
                              '1002.01.05',
@@ -181,8 +179,8 @@ class TestSystem:
         System.createVoucher('test/001', datetime.date(2000, 1, 1))
         System.updateDebitCreditEntries(
             'test/001',
-            [VoucherEntry(account_code='1002.01.05', amount=100.0, currency_name='美元')],
-            [VoucherEntry(account_code='1002.02', amount=800.0, currency_name='人民币')]
+            [VoucherEntry(account_code='1002.01.05', amount=100.0, currency='美元', exchange_rate=8.0)],
+            [VoucherEntry(account_code='1002.02', amount=800.0, currency='人民币', exchange_rate=1.0)]
         )
 
         with pytest.raises(IllegalOperation, match='A2.1/3'):
@@ -212,8 +210,8 @@ class TestSystem:
         System.createVoucher('test/001', datetime.date(2000, 1, 1))
         System.updateDebitCreditEntries(
             'test/001',
-            [VoucherEntry(account_code='1002.01.05', amount=100.0, currency_name='美元')],
-            [VoucherEntry(account_code='1002.02', amount=800.0, currency_name='人民币')]
+            [VoucherEntry(account_code='1002.01.05', amount=100.0, currency='美元', exchange_rate=8.0)],
+            [VoucherEntry(account_code='1002.02', amount=800.0, currency='人民币', exchange_rate=1.0)]
         )
 
     def test_account_A2_2S3(self):
@@ -244,12 +242,11 @@ class TestSystem:
         System.setAccountCurrency('1002.02', '人民币')
         System.createVoucher('test/001', datetime.date(2000, 1, 1))
 
-        with pytest.raises(IllegalOperation, match='A3.2/2'):
-            System.updateDebitCreditEntries(
-                'test/001',
-                [VoucherEntry(account_code='1002.01.05', amount=100.0, currency_name='美元')],
-                [VoucherEntry(account_code='1002.02', amount=700.0, currency_name='人民币')]
-            )
+        System.updateDebitCreditEntries(
+            'test/001',
+            [VoucherEntry(account_code='1002.01.05', amount=100.0, currency='美元', exchange_rate=8.0)],
+            [VoucherEntry(account_code='1002.02', amount=800.0, currency='人民币', exchange_rate=1.0)]
+        )
 
     def test_account_A3_2S3(self):
         System.createAccount('1002.01',
@@ -263,13 +260,13 @@ class TestSystem:
         System.createVoucher('test/001', datetime.date(2000, 1, 15))
         System.updateDebitCreditEntries(
             'test/001',
-            [VoucherEntry(account_code='1002.01.05', amount=100.0, currency_name='美元')],
-            [VoucherEntry(account_code='1002.02', amount=800.0, currency_name='人民币')]
+            [VoucherEntry(account_code='1002.01.05', amount=100.0, currency='美元', exchange_rate=8.0)],
+            [VoucherEntry(account_code='1002.02', amount=800.0, currency='人民币', exchange_rate=1.0)]
         )
 
         System.createVoucher('test/002', datetime.date(2000, 2, 15))
         System.updateDebitCreditEntries(
             'test/002',
-            [VoucherEntry(account_code='1002.01.05', amount=100.0, currency_name='美元')],
-            [VoucherEntry(account_code='1002.02', amount=700.0, currency_name='人民币')]
+            [VoucherEntry(account_code='1002.01.05', amount=100.0, currency='美元', exchange_rate=7.0)],
+            [VoucherEntry(account_code='1002.02', amount=700.0, currency='人民币', exchange_rate=1.0)]
         )

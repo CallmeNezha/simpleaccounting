@@ -17,15 +17,17 @@
 import datetime
 
 from qtpy import QtWidgets, QtGui, QtCore
-from simpleaccounting.widgets.qwidgets import CustomQDialog
 from simpleaccounting.tools.dateutil import months_between, last_day_of_month, last_day_of_year
 from simpleaccounting.app.system import System
-from simpleaccounting.widgets.voucheredit import VoucherEditDialog, MonthEndCarryForwardDialog, YearEndCarryForwardDialog
-from simpleaccounting.widgets.subsidiaryledger import SubsidiaryLedgerDialog
 from simpleaccounting.widgets.endingbalance import EndingBalanceDialog
 
 
-class VoucherDialog(CustomQDialog):
+class VoucherWidget(QtWidgets.QWidget):
+
+    signal_voucher_edit_requested = QtCore.Signal(datetime.date)
+    signal_mecf_requested = QtCore.Signal(datetime.date)
+    signal_yecf_requested = QtCore.Signal(datetime.date)
+    signal_subsidiary_ledger_requested = QtCore.Signal()
 
     def __init__(self):
         super().__init__(None)
@@ -102,7 +104,7 @@ class VoucherDialog(CustomQDialog):
             item.setData(QtCore.Qt.ItemDataRole.UserRole, date)
             item.setForeground(QtGui.QColor('#AAAAAA'))
             self.list_month.insertItem(0, item)
-            # !for
+        # !for
         self.list_month.blockSignals(False)
         self.list_month.setCurrentRow(0)
         self.list_month.currentItem().setForeground(QtGui.QColor('#0000FF'))
@@ -113,35 +115,22 @@ class VoucherDialog(CustomQDialog):
         if not item:
             return
         date = item.data(QtCore.Qt.ItemDataRole.UserRole)
-        dialog = VoucherEditDialog(date)
-        dialog.setWindowTitle(f'凭证录入 - {date.strftime("%Y年%m月")}')
-        dialog.resize(1600, 600)
-        dialog.exec_()
-        self.on_listMonthCurrentChanged()
+        self.signal_voucher_edit_requested.emit(date)
 
     def on_btn_MECFVClicked(self):
         item = self.list_month.currentItem()
         if not item:
             return
+
         date = item.data(QtCore.Qt.ItemDataRole.UserRole)
-        dialog = MonthEndCarryForwardDialog(date)
-        dialog.setWindowTitle(f'月末结转凭证 - {date.strftime("%Y年%m月")}')
-        dialog.resize(1600, 600)
-        dialog.exec_()
-        self.on_listMonthCurrentChanged()
+        self.signal_mecf_requested.emit(date)
 
     def on_btn_YECFVClicked(self):
         item = self.list_month.currentItem()
         if not item:
             return
-
         date = item.data(QtCore.Qt.ItemDataRole.UserRole)
-        date = last_day_of_year(datetime.date(date.year - 1, date.month, date.day))
-        dialog = YearEndCarryForwardDialog(date)
-        dialog.setWindowTitle(f'往年结转凭证 - {date.strftime("%Y年")}')
-        dialog.resize(1600, 600)
-        dialog.exec_()
-        self.on_listMonthCurrentChanged()
+        self.signal_yecf_requested.emit(date)
 
     def on_btn_forwardMonthClicked(self):
         if QtWidgets.QMessageBox.Yes == QtWidgets.QMessageBox.question(None, "确认", "是否进入下一个账期"):
@@ -149,15 +138,12 @@ class VoucherDialog(CustomQDialog):
             self.updateUI()
 
     def on_btn_subsidiaryLedgerClicked(self):
-        dialog = SubsidiaryLedgerDialog()
-        dialog.resize(1600, 600)
-        dialog.exec_()
+        self.signal_subsidiary_ledger_requested.emit()
 
     def on_btn_endingBalanceClicked(self):
         dialog = EndingBalanceDialog()
         dialog.resize(1600, 600)
         dialog.exec_()
-
 
     def on_listMonthCurrentChanged(self):
         #
