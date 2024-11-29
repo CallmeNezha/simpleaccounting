@@ -16,11 +16,11 @@
 from qtpy import QtWidgets, QtCore, QtGui
 
 from simpleaccounting.app.system import System
-from simpleaccounting.tools.dateutil import last_day_of_month
-from simpleaccounting.widgets.qwidgets import CustomQDialog, HorizontalSpacer
+from simpleaccounting.tools.dateutil import last_day_of_month, qdate_to_date
+from simpleaccounting.widgets.qwidgets import HorizontalSpacer
 
 
-class EndingBalanceDialog(CustomQDialog):
+class EndingBalanceWidget(QtWidgets.QWidget):
 
     def __init__(self):
         super().__init__()
@@ -28,40 +28,50 @@ class EndingBalanceDialog(CustomQDialog):
         self.updateUI()
 
     def setupUI(self):
+        self.setWindowTitle("期末余额")
         self.tree = QtWidgets.QTreeWidget()
-        self.tree.setHeaderLabels(["代码", "科目"])
+        self.tree.setHeaderLabels(["代码", "科目", "货币余额", "本币余额"])
         #
-        self.de_end = QtWidgets.QDateEdit(last_day_of_month(System.meta().month_until))
+        self.dateedit_end = QtWidgets.QDateEdit(last_day_of_month(System.meta().month_until))
         #
         container = QtWidgets.QWidget()
         hbox = QtWidgets.QHBoxLayout(container)
         hbox.addWidget(QtWidgets.QLabel("截止日期"))
-        hbox.addWidget(self.de_end)
+        hbox.addWidget(self.dateedit_end)
         self.action_pull = QtWidgets.QAction(QtGui.QIcon(":/icons/persistenceEntity.svg"), "拉取", self)
-        #
+        self.action_pull.triggered.connect(self.on_action_pullTriggered)
         self.tbar = QtWidgets.QToolBar()
         self.tbar.setToolButtonStyle(QtCore.Qt.ToolButtonTextUnderIcon)
         self.tbar.addWidget(HorizontalSpacer())
         self.tbar.addWidget(container)
         self.tbar.addSeparator()
         self.tbar.addAction(self.action_pull)
-        layout = QtWidgets.QVBoxLayout(self)
-        layout.addWidget(self.tbar)
-        layout.addWidget(self.tree)
+        vbox = QtWidgets.QVBoxLayout(self)
+        vbox.addWidget(self.tbar)
+        vbox.addWidget(self.tree)
 
     def updateUI(self):
-        items = {}
+        self.items = {}
         for a in System.accounts():
             item = QtWidgets.QTreeWidgetItem()
             item.setText(0, a.code)
             item.setText(1, a.name)
             item.setData(0, QtCore.Qt.UserRole, a)
-            items[a.code] = item
+            self.items[a.code] = item
 
-        for code, item in items.items():
+        for code, item in self.items.items():
             account = System.account(code)
             if account.parent:
-                items[account.parent.code].addChild(item)
+                self.items[account.parent.code].addChild(item)
             else:
                 self.tree.addTopLevelItem(item)
         #
+
+    def on_action_pullTriggered(self):
+        for item in self.items.values():
+            account = item.data(0, QtCore.Qt.UserRole)
+            if not account.children and account.currency:
+                currency_amount, currency_local_amount = System.endingBalance(account.code, qdate_to_date(self.dateedit_end.date()))
+                item.setText(2, str(currency_amount))
+                item.setText(3, str(currency_local_amount))
+

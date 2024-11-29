@@ -103,6 +103,20 @@ class Account:
             else:
                 return Currency(currency)
 
+    def debitEntries(self, filter=None):
+        with FFDB.db_session:
+            if filter:
+                return list(FFDB.db.Account.get(code=self.code).debit_entries.select(filter))
+            else:
+                return list(FFDB.db.Account.get(code=self.code).debit_entries.select())
+
+    def creditEntries(self, filter=None):
+        with FFDB.db_session:
+            if filter:
+                return list(FFDB.db.Account.get(code=self.code).credit_entries.select(filter))
+            else:
+                return list(FFDB.db.Account.get(code=self.code).credit_entries.select())
+
 
 class DebitEntry:
     """"""
@@ -645,7 +659,6 @@ class System:
             # !if
             return debit_entries, credit_entries
 
-
     @staticmethod
     def previewYearEndCarryForwardVoucherEntries(year: datetime.date):
         with FFDB.db_session:
@@ -673,6 +686,23 @@ class System:
                 debit_entries.append(VoucherEntry(account_code='4104.06', amount=abs(profit_remains.value), currency="人民币", exchange_rate=1.0))
             # !if
             return debit_entries, credit_entries
+
+    @staticmethod
+    def endingBalance(account_code, date_until: datetime.date):
+        with FFDB.db_session:
+            debit_entries = FFDB.db.Account.get(code=account_code).debit_entries.select(lambda e: e.voucher.date <= date_until)
+            credit_entries = FFDB.db.Account.get(code=account_code).credit_entries.select(lambda e: e.voucher.date <= date_until)
+
+            currency_amount = FloatWithPrecision(0.0)
+            currency_local_amount = FloatWithPrecision(0.0)
+            for entry in debit_entries:
+                currency_amount += entry.amount
+                currency_local_amount += entry.amount * entry.exchange_rate
+            for entry in credit_entries:
+                currency_amount -= entry.amount
+                currency_local_amount -= entry.amount * entry.exchange_rate
+            #
+            return currency_amount, currency_local_amount
 
 
 

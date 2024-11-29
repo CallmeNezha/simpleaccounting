@@ -596,6 +596,14 @@ class VoucherEditWidget(QtWidgets.QWidget):
             key=lambda v: v.number
         )
 
+    def accountingVouchersInThisMonth(self):
+        return sorted(
+            System.vouchers(
+                lambda v: first_day_of_month(self.date_month) <= v.date and
+                          last_day_of_month(self.date_month) >= v.date and v.category == '记账') ,
+            key=lambda v: v.number
+        )
+
     def inputVoucherEntries(self) -> tuple[list[VoucherEntry], list[VoucherEntry]]:
         """
         Returns debit and credit voucher entries
@@ -746,8 +754,8 @@ class VoucherEditWidget(QtWidgets.QWidget):
         ret = QtWidgets.QMessageBox.question(None, "提示", "作废凭证将重排所有当月凭证号，是否作废该凭证?")
         if ret == QtWidgets.QDialogButtonBox.Yes:
             System.deleteVoucher(self.vouchers[self.index_current].number)
-            self.vouchers.pop(self.index_current)
-            for i, v in enumerate(self.vouchers):
+            accounting_vouchers = self.accountingVouchersInThisMonth()
+            for i, v in enumerate(accounting_vouchers):
                 System.changeVoucherNumber(
                     v.number,
                     f"{self.date_month.strftime('%Y-%m')}/{i + 1:04d}"
@@ -768,7 +776,7 @@ class VoucherEditWidget(QtWidgets.QWidget):
                 ret = QtWidgets.QMessageBox.question(None, "提示", "已经是最末张了，是否添加新的凭证?")
                 if ret == QtWidgets.QMessageBox.Yes:
                     voucher = System.createVoucher(
-                        number=f"{self.date_month.strftime('%Y-%m')}/{len(self.vouchers) + 1:04d}",
+                        number=f"{self.date_month.strftime('%Y-%m')}/{len(self.accountingVouchersInThisMonth()) + 1:04d}",
                         date=qdate_to_date(self.dateedit.date())
                     )
                     self.vouchers.append(voucher)

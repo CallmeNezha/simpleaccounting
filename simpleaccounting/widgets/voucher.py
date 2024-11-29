@@ -19,7 +19,6 @@ import datetime
 from qtpy import QtWidgets, QtGui, QtCore
 from simpleaccounting.tools.dateutil import months_between, last_day_of_month, last_day_of_year
 from simpleaccounting.app.system import System
-from simpleaccounting.widgets.endingbalance import EndingBalanceDialog
 
 
 class VoucherWidget(QtWidgets.QWidget):
@@ -27,7 +26,6 @@ class VoucherWidget(QtWidgets.QWidget):
     signal_voucher_edit_requested = QtCore.Signal(datetime.date)
     signal_mecf_requested = QtCore.Signal(datetime.date)
     signal_yecf_requested = QtCore.Signal(datetime.date)
-    signal_subsidiary_ledger_requested = QtCore.Signal()
 
     def __init__(self):
         super().__init__(None)
@@ -71,10 +69,6 @@ class VoucherWidget(QtWidgets.QWidget):
         self.btn_last_year_end_carry_forward_voucher.clicked.connect(self.on_btn_YECFVClicked)
         self.btn_forward_month = QtWidgets.QPushButton("进入下月")
         self.btn_forward_month.clicked.connect(self.on_btn_forwardMonthClicked)
-        self.btn_subsidiary_ledger = QtWidgets.QPushButton("明细账")
-        self.btn_subsidiary_ledger.clicked.connect(self.on_btn_subsidiaryLedgerClicked)
-        self.btn_ending_balance = QtWidgets.QPushButton("期末余额")
-        self.btn_ending_balance.clicked.connect(self.on_btn_endingBalanceClicked)
         self.btn_view = QtWidgets.QPushButton("【Excel】凭证查看")
         # self.btn_view.clicked.connect(self.on_buttonViewClicked)
         grid.addWidget(self.btn_voucher_entry, 3, 0, 1, 2)
@@ -84,8 +78,6 @@ class VoucherWidget(QtWidgets.QWidget):
         vbox = QtWidgets.QVBoxLayout()
         vbox.addWidget(self.btn_forward_month)
         vbox.addStretch(10)
-        vbox.addWidget(self.btn_subsidiary_ledger)
-        vbox.addWidget(self.btn_ending_balance)
         vbox.addWidget(self.btn_view)
         hbox = QtWidgets.QHBoxLayout(self)
         hbox.addWidget(self.list_month)
@@ -136,14 +128,6 @@ class VoucherWidget(QtWidgets.QWidget):
         if QtWidgets.QMessageBox.Yes == QtWidgets.QMessageBox.question(None, "确认", "是否进入下一个账期"):
             System.forwardToNextMonth()
             self.updateUI()
-
-    def on_btn_subsidiaryLedgerClicked(self):
-        self.signal_subsidiary_ledger_requested.emit()
-
-    def on_btn_endingBalanceClicked(self):
-        dialog = EndingBalanceDialog()
-        dialog.resize(1600, 600)
-        dialog.exec_()
 
     def on_listMonthCurrentChanged(self):
         #

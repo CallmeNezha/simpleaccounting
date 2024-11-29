@@ -30,8 +30,7 @@ class Application(QtWidgets.QApplication):
         self.setupUI()
 
     def setupUI(self):
-        # self.setStyle(QtWidgets.QStyleFactory.create('Windows'))
-        self.setWindowIcon(QtGui.QIcon(':/icons/notebook.svg'))
+        self.setWindowIcon(QtGui.QIcon(':/icons/accounting-calculator.png'))
         self.dialog_login = LoginDialog()
         self.dialog_login.sigLoginRequest.connect(self.login)
         self.dialog_login.exec_()
