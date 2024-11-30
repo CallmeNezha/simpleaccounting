@@ -22,6 +22,8 @@ from typing import Optional
 from pydantic import BaseModel, PositiveFloat, ValidationError
 from collections import defaultdict
 
+from sympy.physics.units import amount
+
 from simpleaccounting.ffdb import FFDB
 from simpleaccounting.tools.mymath import FloatWithPrecision
 from simpleaccounting.defaults import DEFAULT_ACCOUNTS_2023
@@ -239,12 +241,15 @@ class System:
             for account in FFDB.db.Account.select():
                 account.qualname = System.__account_qualname(account)
 
-            # 月末结转，年末结转
+            # 月末结转，年末结转，汇兑损益
             annual_profit = FFDB.db.Account.get(name='本年利润')
             annual_profit.currency = rmb
 
             undistributed_profit = FFDB.db.Account.get(name='未分配利润')
             undistributed_profit.currency = rmb
+
+            exchange_difference = FFDB.db.Account.get(name='汇兑差额')
+            exchange_difference.currency = rmb
 
     @staticmethod
     def bindDatabase(filename: pathlib.Path):
@@ -619,7 +624,7 @@ class System:
             query = FFDB.db.Voucher.select(
                 lambda v: first_day_of_month(month) <= v.date and
                           v.date <= last_day_of_month(month) and
-                          v.category == '记账'
+                          v.category in ('记账', '汇兑损益结转')
             )
 
             for v in query:
@@ -679,30 +684,130 @@ class System:
             # 1for
 
             if profit_remains > 0.0:
-                debit_entries.append(VoucherEntry(account_code='4103', amount=profit_remains.value, currency="人民币", exchange_rate=1.0))
-                credit_entries.append(VoucherEntry(account_code='4104.06', amount=profit_remains.value, currency="人民币", exchange_rate=1.0))
+                credit_entries.append(
+                    VoucherEntry(account_code='4103', amount=abs(profit_remains.value), currency="人民币",
+                                 exchange_rate=1.0))
+                debit_entries.append(
+                    VoucherEntry(account_code='4104.06', amount=abs(profit_remains.value), currency="人民币",
+                                 exchange_rate=1.0))
             elif profit_remains < 0.0:
-                credit_entries.append(VoucherEntry(account_code='4103', amount=abs(profit_remains.value), currency="人民币", exchange_rate=1.0))
-                debit_entries.append(VoucherEntry(account_code='4104.06', amount=abs(profit_remains.value), currency="人民币", exchange_rate=1.0))
+                debit_entries.append(VoucherEntry(account_code='4103', amount=abs(profit_remains.value), currency="人民币",
+                                                  exchange_rate=1.0))
+                credit_entries.append(
+                    VoucherEntry(account_code='4104.06', amount=abs(profit_remains.value), currency="人民币",
+                                 exchange_rate=1.0))
+
             # !if
             return debit_entries, credit_entries
 
     @staticmethod
-    def endingBalance(account_code, date_until: datetime.date):
+    def endingBalance(account_code: str, date_until: datetime.date) -> tuple[FloatWithPrecision, FloatWithPrecision]:
         with FFDB.db_session:
-            debit_entries = FFDB.db.Account.get(code=account_code).debit_entries.select(lambda e: e.voucher.date <= date_until)
-            credit_entries = FFDB.db.Account.get(code=account_code).credit_entries.select(lambda e: e.voucher.date <= date_until)
+            account = FFDB.db.Account.get(code=account_code)
+            account_currency: str = account.currency.name
+            debit_entries = account.debit_entries.select(lambda e: e.voucher.date <= date_until)
+            credit_entries = account.credit_entries.select(lambda e: e.voucher.date <= date_until)
 
             currency_amount = FloatWithPrecision(0.0)
             currency_local_amount = FloatWithPrecision(0.0)
             for entry in debit_entries:
-                currency_amount += entry.amount
+                # there are exchange gains and losses vouchers that use local currency
+                if account_currency == entry.currency:
+                    currency_amount += entry.amount
+                # 1if
                 currency_local_amount += entry.amount * entry.exchange_rate
             for entry in credit_entries:
-                currency_amount -= entry.amount
+                # there are exchange gains and losses vouchers that use local currency
+                if account_currency == entry.currency:
+                    currency_amount -= entry.amount
+                # 1if
                 currency_local_amount -= entry.amount * entry.exchange_rate
             #
             return currency_amount, currency_local_amount
+
+    @staticmethod
+    def previewExchangeGainsAndLosses(month: datetime.date):
+
+        def pair_entries(gains_losses: FloatWithPrecision, account_code: str, brief: str):
+
+            debit_entry = None
+            credit_entry = None
+
+            if gains_losses > 0.0:
+                debit_entry = VoucherEntry(
+                    account_code=account_code,
+                    amount=gains_losses.value,
+                    currency='人民币',
+                    exchange_rate=1.0,
+                    brief=brief
+                )
+                credit_entry = VoucherEntry(
+                    account_code='6603.03',
+                    amount=gains_losses.value,
+                    currency='人民币',
+                    exchange_rate=1.0,
+                    brief=brief
+                )
+            elif gains_losses < 0.0:
+                debit_entry = VoucherEntry(
+                    account_code='6603.03',
+                    amount=abs(gains_losses.value),
+                    currency='人民币',
+                    exchange_rate=1.0,
+                    brief=brief
+                )
+                credit_entry = VoucherEntry(
+                    account_code=account_code,
+                    amount=abs(gains_losses.value),
+                    currency='人民币',
+                    exchange_rate=1.0,
+                    brief=brief
+                )
+            return (debit_entry, credit_entry) if debit_entry else None
+
+        #
+        debit_entries = []
+        credit_entries = []
+
+        with FFDB.db_session:
+            for account in FFDB.db.Account.select():
+                if not account.need_exchange_gains_losses:
+                    continue
+                # 1for
+
+                account_currency = account.currency.name
+                current_exchange_rate = System.exchangeRate(account.currency.name, last_day_of_month(month)).rate
+
+                remains_currency, remains_local_currency = System.endingBalance(account.code, last_day_of_previous_month(month))
+                beginning_balance_gains_losses = remains_currency * current_exchange_rate - remains_local_currency
+                if pair := pair_entries(beginning_balance_gains_losses, account.code, '期初余额'):
+                    debit_entries.append(pair[0])
+                    credit_entries.append(pair[1])
+
+                for entry in account.debit_entries.select(
+                    lambda e: e.voucher.date >= first_day_of_month(month) and # noqa
+                              e.voucher.date <= last_day_of_month(month)):
+                    if entry.currency == account_currency:
+                        gains_losses = (current_exchange_rate - entry.exchange_rate) * entry.amount
+                        if pair := pair_entries(gains_losses, account.code, entry.voucher.number):
+                            debit_entries.append(pair[0])
+                            credit_entries.append(pair[1])
+
+                for entry in account.credit_entries.select(
+                    lambda e: e.voucher.date >= first_day_of_month(month) and # noqa
+                              e.voucher.date <= last_day_of_month(month)):
+                    if entry.currency == account_currency:
+                        gains_losses = - (current_exchange_rate - entry.exchange_rate) * entry.amount
+                        if pair := pair_entries(gains_losses, account.code, entry.voucher.number):
+                            debit_entries.append(pair[0])
+                            credit_entries.append(pair[1])
+
+        return debit_entries, credit_entries
+
+
+
+
+
 
 
 

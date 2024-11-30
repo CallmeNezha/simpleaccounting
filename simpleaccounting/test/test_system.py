@@ -24,8 +24,10 @@ class TestSystem:
 
     @pytest.fixture(scope='function', autouse=True)
     def new_book(self, tmpdir_factory):
-        System.new(pathlib.Path(tmpdir_factory.mktemp('db').join('test.sqlite')),
+        filename = pathlib.Path(tmpdir_factory.mktemp('db').join('test.sqlite'))
+        System.new(filename,
                    datetime.date(1999, 12, 1))
+        print(filename)
 
     def test_account_A1_1S1(self):
         # A1.1/2

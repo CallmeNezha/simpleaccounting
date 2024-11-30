@@ -319,7 +319,6 @@ class VoucherEditWidget(QtWidgets.QWidget):
         self.index_current = -1 if len(self.vouchers) == 0 else 0
         self.updateUI()
 
-
     def setupUI(self):
         font = self.font()
         font.setBold(True)
@@ -983,7 +982,7 @@ class MonthEndCarryForwardWidget(QtWidgets.QWidget):
             currency
         )
         self.table.item(row, COLUMN_EXCHANGE_RATE).setText(
-            str(debit_entry.exchange_rate)
+            str(FloatWithPrecision(debit_entry.exchange_rate))
         )
         self.table.item(row, COLUMN_EXCHANGE_RATE).setData(
             QtCore.Qt.UserRole,
@@ -1167,6 +1166,66 @@ class YearEndCarryForwardWidget(MonthEndCarryForwardWidget):
 
         System.updateDebitCreditEntries(
             self.date_month.strftime('%Y-XX/YECF'),
+            *self.voucherEntries()
+        )
+        self.action_update.setEnabled(False)
+        self.action_update.setText('无需更新')
+
+
+class ExchangeGainsLossesWidget(MonthEndCarryForwardWidget):
+
+    def updateUI(self):
+        self.action_update.setEnabled(False)
+        self.action_update.setText('无需更新')
+        self.lbl_voucher_category.setText('汇兑损益结转')
+        self.lbl_voucher_number.setText(self.date_month.strftime('%Y-%m/EGLCF'))
+        self.de.setDate(last_day_of_month(self.date_month))
+        debit_entries, credit_entries = System.previewExchangeGainsAndLosses(self.date_month)
+        if debit_entries and credit_entries:
+            self.stack.setCurrentWidget(self.table)
+            self.table.setRowCount(len(debit_entries) + len(credit_entries))
+            for i in range(len(debit_entries)):
+                self.setDebitEntryAtTableRow(i, debit_entries[i])
+            for i in range(len(credit_entries)):
+                j = i + len(debit_entries)
+                self.setCreditEntryAtTableRow(j, credit_entries[i])
+            # 1for
+            self.refreshDebitCreditTotal()
+        else:
+            self.stack.setCurrentWidget(self.lbl_hint)
+            self.lbl_hint.setText(self.date_month.strftime('%Y年%m月') + "无需汇兑损益结转")
+            return
+        #
+        try:
+            voucher = System.voucher(self.date_month.strftime('%Y-%m/EGLCF'))
+            a = [(e.account_code, FloatWithPrecision(e.amount), e.brief) for e in debit_entries]
+            b = [(e.account.code, FloatWithPrecision(e.amount), e.brief) for e in voucher.debit_entries]
+            if sorted(a) != sorted(b):
+                self.action_update.setEnabled(True)
+                self.action_update.setText('更新')
+            a = [(e.account_code, FloatWithPrecision(e.amount), e.brief) for e in credit_entries]
+            b = [(e.account.code, FloatWithPrecision(e.amount), e.brief) for e in voucher.credit_entries]
+            if sorted(a) != sorted(b):
+                self.action_update.setEnabled(True)
+                self.action_update.setText('更新')
+        except EntryNotFound:
+            self.action_update.setEnabled(True)
+            self.action_update.setText('更新')
+
+    def on_actionUpdateTriggered(self):
+        try:
+            voucher = System.voucher(self.date_month.strftime('%Y-%m/EGLCF'))
+            voucher.credit_entries.clear()
+            voucher.debit_entries.clear()
+        except EntryNotFound:
+            System.createVoucher(
+                self.date_month.strftime('%Y-%m/EGLCF'),
+                last_day_of_month(self.date_month),
+                category='汇兑损益结转'
+            )
+
+        System.updateDebitCreditEntries(
+            self.date_month.strftime('%Y-%m/EGLCF'),
             *self.voucherEntries()
         )
         self.action_update.setEnabled(False)

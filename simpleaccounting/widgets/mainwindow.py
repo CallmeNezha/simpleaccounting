@@ -22,7 +22,7 @@ from simpleaccounting.widgets.currency import CurrencyWidget
 from simpleaccounting.widgets.endingbalance import EndingBalanceWidget
 from simpleaccounting.widgets.voucher import VoucherWidget
 from simpleaccounting.tools.dateutil import last_day_of_year, month_of_date
-from simpleaccounting.widgets.voucheredit import YearEndCarryForwardWidget
+from simpleaccounting.widgets.voucheredit import YearEndCarryForwardWidget, ExchangeGainsLossesWidget
 from simpleaccounting.widgets.subsidiaryledger import SubsidiaryLedgerWidget
 from simpleaccounting.widgets.voucheredit import MonthEndCarryForwardWidget
 from simpleaccounting.widgets.voucheredit import VoucherEditWidget
@@ -68,10 +68,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.voucher_widget.signal_voucher_edit_requested.connect(self.on_voucherEditRequested)
         self.voucher_widget.signal_mecf_requested.connect(self.on_mecfRequested)
         self.voucher_widget.signal_yecf_requested.connect(self.on_yecfRequested)
+        self.voucher_widget.signal_exchange_gains_losses_requested.connect(self.on_exchangeGainsLossesRequested)
         self.voucher_sub_window = QtWidgets.QMdiSubWindow()
         self.voucher_sub_window.setWidget(self.voucher_widget)
         self.voucher_sub_window.setWindowIcon(QtGui.QIcon(":/icons/pay-date.png"))
-
         self.subsidiary_ledger_widget = SubsidiaryLedgerWidget()
         self.subsidiary_ledger_widget.signal_view_voucher.connect(self.on_viewVoucher)
         self.subsidiary_ledger_sub_window = QtWidgets.QMdiSubWindow()
@@ -79,7 +79,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.subsidiary_ledger_sub_window.resize(1600, 400)
         self.subsidiary_ledger_sub_window.move(20, 20)
         self.subsidiary_ledger_sub_window.hide()
-
         self.voucher_viewer_widget = VoucherEditWidget(System.meta().month_until)
         self.voucher_viewer_widget.setReadOnly(True)
         self.voucher_viewer_sub_window = QtWidgets.QMdiSubWindow()
@@ -87,13 +86,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.voucher_viewer_sub_window.resize(1600, 400)
         self.voucher_viewer_sub_window.move(20, 20)
         self.voucher_viewer_sub_window.hide()
-
         self.ending_balance_widget = EndingBalanceWidget()
         self.ending_balance_sub_window = QtWidgets.QMdiSubWindow()
         self.ending_balance_sub_window.setWidget(self.ending_balance_widget)
         self.ending_balance_sub_window.resize(600, 800)
         self.ending_balance_sub_window.hide()
-
         self.mdi_area.addSubWindow(self.account_sub_window)
         self.mdi_area.addSubWindow(self.currency_sub_window)
         self.mdi_area.addSubWindow(self.voucher_sub_window)
@@ -111,12 +108,15 @@ class MainWindow(QtWidgets.QMainWindow):
             self.account_sub_window.setEnabled(True)
             self.currency_sub_window.setEnabled(True)
             self.voucher_sub_window.setEnabled(True)
+            self.voucher_widget.on_listMonthCurrentChanged()
         except Exception:
             ...
 
     def on_voucherEditRequested(self, date: datetime.date):
         self.enterVoucherEditMode()
-        sub_window: QtWidgets.QMdiSubWindow = self.mdi_area.addSubWindow(VoucherEditWidget(date))
+        sub_window: QtWidgets.QMdiSubWindow = self.mdi_area.addSubWindow(
+            VoucherEditWidget(date)
+        )
         sub_window.setWindowTitle(f'凭证录入 - {date.strftime("%Y年%m月")}')
         sub_window.show()
         sub_window.resize(1600, 600)
@@ -125,7 +125,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def on_mecfRequested(self, date: datetime.date):
         self.enterVoucherEditMode()
-        sub_window: QtWidgets.QMdiSubWindow = self.mdi_area.addSubWindow(MonthEndCarryForwardWidget(date))
+        sub_window: QtWidgets.QMdiSubWindow = self.mdi_area.addSubWindow(
+            MonthEndCarryForwardWidget(date)
+        )
         sub_window.setWindowTitle(f'月末结转凭证 - {date.strftime("%Y年%m月")}')
         sub_window.show()
         sub_window.resize(1600, 600)
@@ -143,11 +145,18 @@ class MainWindow(QtWidgets.QMainWindow):
         sub_window.move(20, 20)
         sub_window.destroyed.connect(lambda *args: self.quitVoucherEditMode())
 
-    def on_endingBalanceRequested(self):
+    def on_exchangeGainsLossesRequested(self, date: datetime.date):
         self.enterVoucherEditMode()
-        sub_window: QtWidgets.QMdiSubWindow = self.mdi_area.addSubWindow(EndingBalanceWidget())
+        sub_window: QtWidgets.QMdiSubWindow = self.mdi_area.addSubWindow(
+            ExchangeGainsLossesWidget(month_of_date(date))
+        )
+        sub_window.setWindowTitle(f'汇兑损益结转凭证 - {date.strftime("%Y年%m月")}')
         sub_window.show()
+        sub_window.resize(1600, 600)
+        sub_window.move(20, 20)
         sub_window.destroyed.connect(lambda *args: self.quitVoucherEditMode())
+
+
 
     def updateUI(self):
         meta = System.meta()

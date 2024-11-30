@@ -17,6 +17,7 @@
 from qtpy import QtWidgets, QtCore, QtGui
 from simpleaccounting.widgets.qwidgets import CustomInputDialog, HorizontalSpacer
 from simpleaccounting.app.system import System, IllegalOperation, EntryNotFound
+from simpleaccounting.tools import stringscores
 
 
 class AccountCreateDialog(CustomInputDialog):
@@ -112,6 +113,21 @@ class AccountWidget(QtWidgets.QWidget):
         self.toolbar.addAction(self.action_create)
         self.toolbar.addAction(self.action_delete)
         #
+        self.tb_choose_account = QtWidgets.QToolButton(self)
+        self.tb_choose_account.setToolTip('选择')
+        self.tb_choose_account.setStyleSheet('background-color: transparent')
+        self.tb_choose_account.setIcon(QtGui.QIcon(":/icons/FindNavigatorSearch(Color).svg"))
+        self.tb_choose_account.clicked.connect(self.on_tb_chooseAccountTriggered)
+        self.cbox_account = QtWidgets.QComboBox(self)
+        self.cbox_account.setMinimumHeight(int(self.fontMetrics().height() * 1.8))
+        self.cbox_account.setEditable(True)
+        self.cbox_account.lineEdit().editingFinished.connect(self.on_cbox_accountEditingFinished)
+        self.tb_locate = QtWidgets.QToolButton()
+        self.tb_locate.setToolTip('选中')
+        self.tb_locate.setIcon(QtGui.QIcon(":/icons/location.png"))
+        self.tb_locate.setStyleSheet("background: transparent;")
+        self.tb_locate.clicked.connect(self.on_tb_locateTriggered)
+        #
         self.widget_branch_property = QtWidgets.QWidget()
 
         form_branch_property = QtWidgets.QFormLayout(self.widget_branch_property)
@@ -168,15 +184,30 @@ class AccountWidget(QtWidgets.QWidget):
         self.stacked.addWidget(self.widget_activated_leaf_property)
 
         vbox = QtWidgets.QVBoxLayout(self)
+        vbox.setSpacing(1)
         splitter = QtWidgets.QSplitter()
-        splitter.addWidget(self.tree)
+        container_tree = QtWidgets.QWidget()
+        container_vbox = QtWidgets.QVBoxLayout(container_tree)
+        container_vbox.setSpacing(1)
+        container_vbox.setContentsMargins(0, 0, 0, 0)
+        hbox = QtWidgets.QHBoxLayout()
+        hbox.setContentsMargins(0, 0, 0, 0)
+        hbox.addStretch(10)
+        hbox.addWidget(QtWidgets.QLabel("科目"))
+        hbox.addWidget(self.tb_choose_account)
+        hbox.addWidget(self.cbox_account)
+        hbox.addWidget(self.tb_locate)
+        container_vbox.addLayout(hbox)
+        container_vbox.addWidget(self.tree)
+        splitter.addWidget(container_tree)
         splitter.addWidget(self.stacked)
         vbox.addWidget(self.toolbar)
+
         vbox.addWidget(splitter)
 
     def updateUI(self):
         """"""
-        items = {}
+        self.items = {}
         self.tree.setHeaderLabels(["代码", "名称"])
 
         for account in System.accounts():
@@ -184,14 +215,19 @@ class AccountWidget(QtWidgets.QWidget):
             item.setText(0, account.code)
             item.setText(1, account.name)
             item.setData(0, QtCore.Qt.UserRole, account)
-            items[account.code] = item
+            self.items[account.code] = item
 
-        for code, item in items.items():
+        for code, item in self.items.items():
             account = item.data(0, QtCore.Qt.UserRole)
             if account.parent:
-                items[account.parent.code].addChild(item)
+                self.items[account.parent.code].addChild(item)
             else:
                 self.tree.addTopLevelItem(item)
+
+        self.cbox_account.clear()
+        for account in System.accounts():
+            self.cbox_account.addItem(f"{account.code} {account.name}", account)
+        # 1for
 
     def on_select(self, current, previous):
         """"""
@@ -351,4 +387,44 @@ class AccountWidget(QtWidgets.QWidget):
 
         dialog = AccountActivateDialog(account.name, account.code, activate)
         dialog.exec_()
+
+    def on_cbox_accountEditingFinished(self):
+        editedText = self.cbox_account.lineEdit().text()
+        # To prevent the text entered in a QComboBox's QLineEdit from being added to the list of items
+        for i in reversed(range(self.cbox_account.count())):
+            if self.cbox_account.itemData(i, QtCore.Qt.UserRole) is None:
+                self.cbox_account.removeItem(i)
+        # 1To
+        accounts = [self.cbox_account.itemData(i, QtCore.Qt.UserRole) for i in range(self.cbox_account.count())]
+
+        rets = stringscores.findMatchingChoices(
+            editedText,
+            [f"{a.code} {a.name}" for a in accounts],
+            template='<b>{0}</b>',
+            valid_only=True,
+            sort=True
+        )
+        if rets:
+            name, named, _ = rets[0]
+            index = next((i for i, a in enumerate(accounts) if f"{a.code} {a.name}" == name), None)
+            self.cbox_account.setCurrentIndex(index) if index else ...
+        else:
+            self.cbox_account.setCurrentIndex(0)
+
+    def on_tb_chooseAccountTriggered(self):
+        from simpleaccounting.widgets.subsidiaryledger import AccountSelectDialog
+
+        def on_accept(account):
+            accounts = [self.cbox_account.itemData(i, QtCore.Qt.UserRole) for i in range(self.cbox_account.count())]
+            index = next((i for i, a in enumerate(accounts) if a.code == account.code), None)
+            self.cbox_account.setCurrentIndex(index) if index != -1 else ...
+            return True
+        #
+        AccountSelectDialog(on_accept).exec_()
+
+    def on_tb_locateTriggered(self):
+        if account := self.cbox_account.currentData(QtCore.Qt.UserRole):
+            if item := self.items.get(account.code):
+                self.tree.setCurrentItem(item)
+
 

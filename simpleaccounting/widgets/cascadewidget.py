@@ -154,12 +154,12 @@ class CNCascadingListsWidget(QtWidgets.QWidget):
         self.listWidget.setSelectionBehavior(QtWidgets.QListWidget.SelectionBehavior.SelectItems)
         self.listWidget.startDrag = self.startDrag
         # layout widget
-        layout = QtWidgets.QVBoxLayout(self)
-        layout.addWidget(self.searchbar)
-        layout.addWidget(self.toolbar)
-        layout.addWidget(self.listWidget)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        vbox = QtWidgets.QVBoxLayout(self)
+        vbox.addWidget(self.searchbar)
+        vbox.addWidget(self.toolbar)
+        vbox.addWidget(self.listWidget)
+        vbox.setContentsMargins(0, 0, 0, 0)
+        vbox.setSpacing(0)
         # widget geometry changing
         self._pressed = False
         self._lastPosition = self.pos()
@@ -169,6 +169,8 @@ class CNCascadingListsWidget(QtWidgets.QWidget):
         self.searchbar.installEventFilter(self)
         self.listWidget.installEventFilter(self)
         self.searchbar.setFocus(QtCore.Qt.FocusReason.OtherFocusReason)
+        #
+        self.items = {}
 
     def show(self):
         """Override show method to set user frequently used edit focused"""
@@ -235,11 +237,10 @@ class CNCascadingListsWidget(QtWidgets.QWidget):
         self.items = {}
 
         def recursiveGet(item: CNCascadingListsWidgetItem):
-            if not item.children():
-                self.items[item.text()] = item
+            self.items[item.text()] = item
             for child in item.children():
                 recursiveGet(child)
-
+            # 1for
         #
         recursiveGet(self._rootItem)
 
@@ -291,7 +292,6 @@ class CNCascadingListsWidget(QtWidgets.QWidget):
                 tb.clicked.connect(lambda f, t=item: self.setCurrentRoot(t))
                 layout.addWidget(tb)
             self.listWidget.setItemWidget(item, widget)
-
 
     def backward(self):
         if not self._currentRootItem().parent():
