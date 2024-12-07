@@ -26,6 +26,7 @@ from simpleaccounting.widgets.voucheredit import YearEndCarryForwardWidget, Exch
 from simpleaccounting.widgets.subsidiaryledger import SubsidiaryLedgerWidget
 from simpleaccounting.widgets.voucheredit import MonthEndCarryForwardWidget
 from simpleaccounting.widgets.voucheredit import VoucherEditWidget
+from simpleaccounting.widgets.balancesheet import BalanceSheetWidget
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -48,11 +49,17 @@ class MainWindow(QtWidgets.QMainWindow):
         self.action_show_subsidary_ledger_window.triggered.connect(self.on_action_showSubsidaryLedgerWindowTriggered)
         self.action_show_ending_balance_window = QtWidgets.QAction(QtGui.QIcon(":/icons/bank.png"), "期末余额")
         self.action_show_ending_balance_window.triggered.connect(self.on_action_showEndingBalanceWindowTriggered)
+        self.action_show_balance_sheet_window = QtWidgets.QAction(QtGui.QIcon(":/icons/fund-accounting.png"), "资产负债表")
+        self.action_show_balance_sheet_window.triggered.connect(self.on_action_showBalanceSheetWindowTriggered)
+        self.action_show_cash_flow_window = QtWidgets.QAction(QtGui.QIcon(":/icons/transaction.png"), "现金流量表")
+        self.action_show_cash_flow_window.triggered.connect(self.on_action_showCashFlowWindowTriggered)
         self.toolbar.addAction(self.action_show_accounts_window)
         self.toolbar.addAction(self.action_show_currency_window)
         self.toolbar.addAction(self.action_show_voucher_window)
         self.toolbar.addAction(self.action_show_subsidary_ledger_window)
         self.toolbar.addAction(self.action_show_ending_balance_window)
+        self.toolbar.addAction(self.action_show_balance_sheet_window)
+        self.toolbar.addAction(self.action_show_cash_flow_window)
         self.mdi_area = QtWidgets.QMdiArea()
         self.addToolBar(self.toolbar)
         self.setCentralWidget(self.mdi_area)
@@ -89,14 +96,20 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ending_balance_widget = EndingBalanceWidget()
         self.ending_balance_sub_window = QtWidgets.QMdiSubWindow()
         self.ending_balance_sub_window.setWidget(self.ending_balance_widget)
-        self.ending_balance_sub_window.resize(600, 800)
+        self.ending_balance_sub_window.resize(1600, 800)
         self.ending_balance_sub_window.hide()
+        self.balance_sheet_widget = BalanceSheetWidget()
+        self.balance_sheet_sub_window = QtWidgets.QMdiSubWindow()
+        self.balance_sheet_sub_window.setWidget(self.balance_sheet_widget)
+        self.balance_sheet_sub_window.resize(1600, 800)
+        self.balance_sheet_sub_window.hide()
         self.mdi_area.addSubWindow(self.account_sub_window)
         self.mdi_area.addSubWindow(self.currency_sub_window)
         self.mdi_area.addSubWindow(self.voucher_sub_window)
         self.mdi_area.addSubWindow(self.subsidiary_ledger_sub_window)
         self.mdi_area.addSubWindow(self.voucher_viewer_sub_window)
         self.mdi_area.addSubWindow(self.ending_balance_sub_window)
+        self.mdi_area.addSubWindow(self.balance_sheet_sub_window)
 
     def enterVoucherEditMode(self):
         self.account_sub_window.setEnabled(False)
@@ -182,3 +195,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def on_action_showEndingBalanceWindowTriggered(self):
         self.ending_balance_widget.show()
+
+    def on_action_showBalanceSheetWindowTriggered(self):
+        self.balance_sheet_widget.show()
+
+    def on_action_showCashFlowWindowTriggered(self):
+        ...

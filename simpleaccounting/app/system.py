@@ -19,10 +19,13 @@ import datetime
 import typing
 
 from typing import Optional
+
+from dateutil.relativedelta import relativedelta
 from pydantic import BaseModel, PositiveFloat, ValidationError
-from collections import defaultdict
+from collections import defaultdict, deque
 
 from sympy.physics.units import amount
+from vstk.expr import Float
 
 from simpleaccounting.ffdb import FFDB
 from simpleaccounting.tools.mymath import FloatWithPrecision
@@ -353,7 +356,7 @@ class System:
     @staticmethod
     def accounts() -> list[Account]:
         with FFDB.db_session:
-            return list((Account(a) for a in FFDB.db.Account.select()))
+            return list((Account(a) for a in FFDB.db.Account.select().order_by(FFDB.db.Account.code)))
 
     @staticmethod
     def setAccountCurrency(account_code: str, currency_name: str, need_exchange_gains_losses: bool=False):
@@ -701,29 +704,151 @@ class System:
             return debit_entries, credit_entries
 
     @staticmethod
-    def endingBalance(account_code: str, date_until: datetime.date) -> tuple[FloatWithPrecision, FloatWithPrecision]:
+    def endingBalanceByName(account_name: str, date_until: datetime.date) -> tuple[FloatWithPrecision|None, FloatWithPrecision]:
+        account = System.accountByName(account_name)
+        if account is None:
+            raise KeyError(account_name)
+        return System.endingBalance(account.code, date_until)
+
+    @staticmethod
+    def incurredBalances(account_code: str, date_from: datetime.date, date_until: datetime.date) -> tuple[
+        FloatWithPrecision|None, FloatWithPrecision|None,
+        FloatWithPrecision|None, FloatWithPrecision|None,
+        FloatWithPrecision|None, FloatWithPrecision|None,
+        FloatWithPrecision|None, FloatWithPrecision|None]:
+        with (((FFDB.db_session))):
+            account = FFDB.db.Account.get(code=account_code)
+            if not account.children:
+                if account.currency is None:
+                    return None, FloatWithPrecision(0.0), \
+                    None, FloatWithPrecision(0.0), \
+                    None, FloatWithPrecision(0.0), \
+                    None, FloatWithPrecision(0.0)
+                #
+                account_currency: str = account.currency.name
+                debit_entries = account.debit_entries.select(lambda e: e.voucher.date <= date_until)
+                credit_entries = account.credit_entries.select(lambda e: e.voucher.date <= date_until)
+
+                begin_amount = FloatWithPrecision(0.0)
+                begin_local_amount = FloatWithPrecision(0.0)
+                incurred_debit_amount = FloatWithPrecision(0.0)
+                incurred_debit_local_amount = FloatWithPrecision(0.0)
+                incurred_credit_amount = FloatWithPrecision(0.0)
+                incurred_credit_local_amount = FloatWithPrecision(0.0)
+                currency_amount = FloatWithPrecision(0.0)
+                currency_local_amount = FloatWithPrecision(0.0)
+                for entry in debit_entries:
+                    # there are exchange gains and losses vouchers that use local currency
+                    if account_currency == entry.currency:
+                        currency_amount += entry.amount
+                        if entry.voucher.date < date_from:
+                            begin_amount += entry.amount
+                        else:
+                            incurred_debit_amount += entry.amount
+                    # 1if
+                    local_amount = entry.amount * entry.exchange_rate
+                    currency_local_amount += local_amount
+                    if entry.voucher.date < date_from:
+                        begin_local_amount += local_amount
+                    else:
+                        incurred_debit_local_amount += local_amount
+                    #
+                for entry in credit_entries:
+                    # there are exchange gains and losses vouchers that use local currency
+                    if account_currency == entry.currency:
+                        currency_amount -= entry.amount
+                        if entry.voucher.date < date_from:
+                            begin_amount -= entry.amount
+                        else:
+                            incurred_credit_amount += entry.amount
+                    # 1if
+                    local_amount = entry.amount * entry.exchange_rate
+                    currency_local_amount -= local_amount
+                    if entry.voucher.date < date_from:
+                        begin_local_amount -= local_amount
+                    else:
+                        incurred_credit_local_amount += local_amount
+                #
+                return (begin_amount, begin_local_amount,
+                        incurred_debit_amount, incurred_debit_local_amount,
+                        incurred_credit_amount, incurred_credit_local_amount,
+                        currency_amount, currency_local_amount)
+            else:
+                stack = deque()
+                stack.append(account)
+                leafs = []
+                while stack:
+                    account = stack.pop()
+                    if account.children:
+                        for a in account.children:
+                            stack.append(a)
+                        # 1for
+                    else:
+                        leafs.append(account)
+                    # 1if
+                # 1while
+                begin_sum_local = FloatWithPrecision(0.0)
+                end_sum_local = FloatWithPrecision(0.0)
+                incurred_debit_sum_local = FloatWithPrecision(0.0)
+                incurred_credit_sum_local = FloatWithPrecision(0.0)
+                for account in leafs:
+                    (_, beginning_balance,
+                     _, incurred_debit,
+                     _, incurred_credit,
+                     _, ending_balance) = System.incurredBalances(account.code, date_from, date_until)
+                    begin_sum_local += beginning_balance
+                    end_sum_local += ending_balance
+                    incurred_debit_sum_local += incurred_debit
+                    incurred_credit_sum_local += incurred_credit
+                return None, begin_sum_local, None, incurred_debit_sum_local, None, incurred_credit_sum_local, None, end_sum_local
+
+    @staticmethod
+    def endingBalance(account_code: str, date_until: datetime.date) -> tuple[FloatWithPrecision|None, FloatWithPrecision]:
         with FFDB.db_session:
             account = FFDB.db.Account.get(code=account_code)
-            account_currency: str = account.currency.name
-            debit_entries = account.debit_entries.select(lambda e: e.voucher.date <= date_until)
-            credit_entries = account.credit_entries.select(lambda e: e.voucher.date <= date_until)
+            if not account.children:
+                if account.currency is None:
+                    return FloatWithPrecision(0.0), FloatWithPrecision(0.0)
+                #
+                account_currency: str = account.currency.name
+                debit_entries = account.debit_entries.select(lambda e: e.voucher.date <= date_until)
+                credit_entries = account.credit_entries.select(lambda e: e.voucher.date <= date_until)
 
-            currency_amount = FloatWithPrecision(0.0)
-            currency_local_amount = FloatWithPrecision(0.0)
-            for entry in debit_entries:
-                # there are exchange gains and losses vouchers that use local currency
-                if account_currency == entry.currency:
-                    currency_amount += entry.amount
-                # 1if
-                currency_local_amount += entry.amount * entry.exchange_rate
-            for entry in credit_entries:
-                # there are exchange gains and losses vouchers that use local currency
-                if account_currency == entry.currency:
-                    currency_amount -= entry.amount
-                # 1if
-                currency_local_amount -= entry.amount * entry.exchange_rate
-            #
-            return currency_amount, currency_local_amount
+                currency_amount = FloatWithPrecision(0.0)
+                currency_local_amount = FloatWithPrecision(0.0)
+                for entry in debit_entries:
+                    # there are exchange gains and losses vouchers that use local currency
+                    if account_currency == entry.currency:
+                        currency_amount += entry.amount
+                    # 1if
+                    currency_local_amount += entry.amount * entry.exchange_rate
+                for entry in credit_entries:
+                    # there are exchange gains and losses vouchers that use local currency
+                    if account_currency == entry.currency:
+                        currency_amount -= entry.amount
+                    # 1if
+                    currency_local_amount -= entry.amount * entry.exchange_rate
+                #
+                return currency_amount, currency_local_amount
+            else:
+                stack = deque()
+                stack.append(account)
+                leafs = []
+                while stack:
+                    account = stack.pop()
+                    if account.children:
+                        for a in account.children:
+                            stack.append(a)
+                        # 1for
+                    else:
+                        leafs.append(account)
+                    # 1if
+                # 1while
+                local_amount = FloatWithPrecision(0.0)
+                for account in leafs:
+                    _, ending_balance = System.endingBalance(account.code, date_until)
+                    local_amount += ending_balance
+                return None, local_amount
 
     @staticmethod
     def previewExchangeGainsAndLosses(month: datetime.date):

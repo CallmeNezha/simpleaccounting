@@ -1,4 +1,4 @@
-<!-- This qrc file is generated automatically on 2024-11-29 14:36:44.533224 -->
+<!-- This qrc file is generated automatically on 2024-12-07 14:49:24.855816 -->
 <RCC>
     <qresource>
         <!-- icons -->
@@ -19,17 +19,24 @@
         <file>icons/play_forward.svg</file>
         <file>icons/play_last.svg</file>
         <file>icons/print.svg</file>
+        <file>icons/1.png</file>
+        <file>icons/2.png</file>
+        <file>icons/3.png</file>
         <file>icons/accounting-calculator.png</file>
         <file>icons/accounting.png</file>
         <file>icons/bank.png</file>
         <file>icons/dollar-taiwan.png</file>
+        <file>icons/dollar-yuan-exchange.png</file>
         <file>icons/down.png</file>
+        <file>icons/edit-property.png</file>
+        <file>icons/fund-accounting.png</file>
         <file>icons/general-ledger.png</file>
         <file>icons/ledger.png</file>
         <file>icons/location.png</file>
         <file>icons/pay-date.png</file>
         <file>icons/receipt-dollar.png</file>
         <file>icons/receipt.png</file>
+        <file>icons/transaction.png</file>
         <file>icons/up.png</file>
         <file>icons/voucher.png</file>
     </qresource>
