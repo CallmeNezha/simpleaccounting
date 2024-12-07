@@ -37,6 +37,7 @@ class FFDB:
         class Meta(db.Entity):
             id = PrimaryKey(int, auto=True)
             version = Required(str)
+            standard = Required(str)
             company = Required(str)
             month_from = Required(datetime.date)
             month_until = Required(datetime.date)
@@ -56,7 +57,7 @@ class FFDB:
 
         class Account(db.Entity):
             id = PrimaryKey(int, auto=True)  # 科目的唯一标识
-            name = Required(str, unique=True)      # 科目名称
+            name = Required(str)                   # 科目名称
             qualname = Required(str, unique=True)  # 科目限定名
             code = Required(str, unique=True)      # 科目代码
             major_category = Required(str)         # 科目大类

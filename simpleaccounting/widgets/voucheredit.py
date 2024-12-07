@@ -20,13 +20,12 @@ import typing
 from qtpy import QtWidgets, QtCore, QtGui
 from simpleaccounting.app.system import System, VoucherEntry, Voucher, IllegalOperation, EntryNotFound
 from simpleaccounting.tools.mymath import FloatWithPrecision
-from simpleaccounting.widgets.qwidgets import CustomQDialog, HorizontalSpacer, CustomInputDialog
+from simpleaccounting.widgets.qwidgets import HorizontalSpacer, CustomInputDialog
 from simpleaccounting.widgets.account import AccountActivateDialog
 from simpleaccounting.tools.dateutil import last_day_of_month, first_day_of_month, qdate_to_date
 from simpleaccounting.widgets.cascadewidget import CNCascadingListsWidget, CNCascadingListsWidgetItem
 
-COLUMNS = ["摘要", "科目名称", "借方币种金额", "贷方币种金额", "币种", "汇率", "借方金额", "贷方金额", "标签"]
-COLUMNS_WIDTH = [20, 20, 12, 12, 8, 8, 12, 12, 6]
+
 COLUMN_BRIEF = 0
 COLUMN_ACCOUNT = 1
 COLUMN_DEBIT_CURRENCY_AMOUNT = 2
@@ -37,6 +36,9 @@ COLUMN_DEBIT_LOCAL_AMOUNT = 6
 COLUMN_CREDIT_LOCAL_AMOUNT = 7
 COLUMN_TAG = 8
 COLUMN_COUNT = 9
+
+COLUMNS = ["摘要", "科目名称", "借方币种金额", "贷方币种金额", "币种", "汇率", "借方金额", "贷方金额", "标签"]
+COLUMNS_WIDTH = [20, 20, 12, 12, 8, 8, 12, 12, 6]
 
 
 class ReadOnlyDelegate(QtWidgets.QStyledItemDelegate):

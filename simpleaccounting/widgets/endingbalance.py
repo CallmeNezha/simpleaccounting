@@ -15,14 +15,10 @@
 """
 
 from qtpy import QtWidgets, QtCore, QtGui
-from dateutil.relativedelta import relativedelta
 
 from simpleaccounting.app.system import System
 from simpleaccounting.tools.dateutil import last_day_of_month, qdate_to_date, first_day_of_month
-from simpleaccounting.tools.mymath import FloatWithPrecision
 from simpleaccounting.widgets.qwidgets import HorizontalSpacer
-from simpleaccounting.widgets.subsidiaryledger import AccountSelectDialog
-from simpleaccounting.tools import stringscores
 from simpleaccounting.widgets.freezabletableview import FreezableTableView
 
 COLUMN_ACCOUNT_CODE = 0
@@ -52,7 +48,7 @@ class EndingBalanceWidget(QtWidgets.QWidget):
         super().__init__()
         self.setupUI()
         self.updateUI()
-        self.setCurrencyAmountVisible(False)
+        self.setCurrencyVisible(False)
 
     def setupUI(self):
         self.setWindowTitle("发生额及余额")
@@ -62,9 +58,9 @@ class EndingBalanceWidget(QtWidgets.QWidget):
         self.table = FreezableTableView(self.model)
         self.tbar = QtWidgets.QToolBar()
         self.tbar.setToolButtonStyle(QtCore.Qt.ToolButtonTextUnderIcon)
-        self.action_currency_amount_visible = QtWidgets.QAction(QtGui.QIcon(":/icons/dollar-yuan-exchange.png"), "币种", self)
-        self.action_currency_amount_visible.setCheckable(True)
-        self.action_currency_amount_visible.toggled.connect(self.setCurrencyAmountVisible)
+        self.action_currency_visible = QtWidgets.QAction(QtGui.QIcon(":/icons/dollar-yuan-exchange.png"), "币种", self)
+        self.action_currency_visible.setCheckable(True)
+        self.action_currency_visible.toggled.connect(self.setCurrencyVisible)
         self.action_pull = QtWidgets.QAction(QtGui.QIcon(":/icons/persistenceEntity.svg"), "拉取", self)
         self.action_pull.triggered.connect(self.on_action_pullTriggered)
         self.action_level_1 = QtWidgets.QAction(QtGui.QIcon(":/icons/1.png"), "一级", self)
@@ -83,14 +79,13 @@ class EndingBalanceWidget(QtWidgets.QWidget):
         self.tbar.addWidget(HorizontalSpacer())
         self.tbar.addWidget(container)
         self.tbar.addSeparator()
-        self.tbar.addAction(self.action_currency_amount_visible)
+        self.tbar.addAction(self.action_currency_visible)
         self.tbar.addSeparator()
         self.tbar.addAction(self.action_level_1)
         self.tbar.addAction(self.action_level_2)
         self.tbar.addAction(self.action_level_3)
         self.tbar.addSeparator()
         self.tbar.addAction(self.action_pull)
-
         vbox = QtWidgets.QVBoxLayout(self)
         vbox.addWidget(self.tbar)
         vbox.addWidget(self.table)
@@ -106,7 +101,7 @@ class EndingBalanceWidget(QtWidgets.QWidget):
 
         return [number_to_excel_columns(i + 1) for i in range(num_columns)]
 
-    def setCurrencyAmountVisible(self, b: bool):
+    def setCurrencyVisible(self, b: bool):
         for col in [COLUMN_BEGINNING_DEBIT_CURRENCY, COLUMN_BEGINNING_CREDIT_CURRENCY,
                     COLUMN_ENDING_DEBIT_CURRENCY, COLUMN_ENDING_CREDIT_CURRENCY,
                     COLUMN_INCURRED_DEBIT_CURRENCY, COLUMN_INCURRED_CREDIT_CURRENCY]:
@@ -138,7 +133,6 @@ class EndingBalanceWidget(QtWidgets.QWidget):
         font_bold.setBold(True)
         for r, account in enumerate(System.accounts()):
             r = r + 2  # first two header row
-
             item = QtGui.QStandardItem(account.code)
             if account.children:
                 item.setFont(font_bold)
@@ -147,10 +141,9 @@ class EndingBalanceWidget(QtWidgets.QWidget):
             if account.children:
                 item.setFont(font_bold)
             self.model.setItem(r, COLUMN_ACCOUNT_NAME, item)
-
         # 1for
         self.table.freezeToRow(2)
-        self.setCurrencyAmountVisible(self.action_currency_amount_visible.isChecked())
+        self.setCurrencyVisible(self.action_currency_visible.isChecked())
 
     def on_action_pullTriggered(self):
 

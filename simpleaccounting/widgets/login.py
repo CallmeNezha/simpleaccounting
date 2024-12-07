@@ -34,11 +34,15 @@ class RegisterDialog(CustomInputDialog):
     def setupUI(self):
         self.le_name = QtWidgets.QLineEdit()
         self.le_name.setValidator(QtGui.QRegExpValidator(QtCore.QRegExp("^[A-Za-z0-9\u4e00-\u9fa5]+$")))
+        self.cb_standard = QtWidgets.QComboBox()
+        self.cb_standard.addItems(['一般企业会计准则（2018）', '小企业会计准则（2013）'])
+
         self.de_month = QtWidgets.QDateEdit()
         self.de_month.setDisplayFormat('yyyy.MM')
         self.de_month.setDate(month_of_date(datetime.datetime.now()))
         form = QtWidgets.QFormLayout()
         form.addRow("账套名称", self.le_name)
+        form.addRow('会计准则', self.cb_standard)
         form.addRow("起始月份", self.de_month)
         vbox = QtWidgets.QVBoxLayout(self)
         vbox.addLayout(form)
@@ -55,7 +59,7 @@ class RegisterDialog(CustomInputDialog):
             return
         #
         month = month_of_date(datetime.date(self.de_month.date().year(), self.de_month.date().month(), 1))
-        System.new(self.path / f"{name}.db", month)
+        System.new(self.path / f"{name}.db", self.cb_standard.currentText(), month)
         super().accept()
 
 

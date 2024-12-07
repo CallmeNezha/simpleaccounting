@@ -29,7 +29,7 @@ from vstk.expr import Float
 
 from simpleaccounting.ffdb import FFDB
 from simpleaccounting.tools.mymath import FloatWithPrecision
-from simpleaccounting.defaults import DEFAULT_ACCOUNTS_2023
+from simpleaccounting.standards import ACCOUNTS_GENERAL_STANDARD_2018
 from simpleaccounting.tools.dateutil import last_day_of_previous_month, first_day_of_month, last_day_of_month, \
     month_of_date, first_day_of_year, last_day_of_year, first_day_of_next_month
 
@@ -200,7 +200,7 @@ class System:
             return False
 
     @staticmethod
-    def new(filename: pathlib.Path, month: datetime.date):
+    def new(filename: pathlib.Path, standard: typing.Literal['一般企业会计准则（2018）', '小企业会计准则（2013）'], month: datetime.date):
         # hard transfer
         month = month_of_date(month)
         #
@@ -209,6 +209,7 @@ class System:
         with FFDB.db_session:
             FFDB.db.Meta(
                 version='2024.11.07',
+                standard=standard,
                 company=filename.stem,
                 month_from=month,
                 month_until=month
@@ -225,34 +226,33 @@ class System:
                 effective_date=datetime.date(1970, 1, 1)
             )
 
-            for major_category, accounts in DEFAULT_ACCOUNTS_2023.items():
+            for major_category, accounts in ACCOUNTS_GENERAL_STANDARD_2018.items():
                 for account in accounts:
                     code_parent = '.'.join(account['科目代码'].split('.')[:-1])
                     parent = FFDB.db.Account.get(code=code_parent) if code_parent else None
-                    if not FFDB.db.Account.get(name=account['科目名称']):
-                        FFDB.db.Account(
-                            name=account['科目名称'],
-                            qualname=account['科目名称'],
-                            code=account['科目代码'],
-                            major_category=major_category,
-                            sub_category=account['科目类别'],
-                            direction=account['余额方向'],
-                            parent=parent,
-                            is_custom=False
-                        )
-
-            for account in FFDB.db.Account.select():
-                account.qualname = System.__account_qualname(account)
+                    FFDB.db.Account(
+                        name=account['科目名称'],
+                        qualname=System.__account_qualname(parent) + '/' + account['科目名称'] if parent else account['科目名称'] ,
+                        code=account['科目代码'],
+                        major_category=major_category,
+                        sub_category=account['科目类别'],
+                        direction=account['余额方向'],
+                        parent=parent,
+                        is_custom=False
+                    )
 
             # 月末结转，年末结转，汇兑损益
-            annual_profit = FFDB.db.Account.get(name='本年利润')
-            annual_profit.currency = rmb
+            if standard == '一般企业会计准则（2018）':
+                annual_profit = FFDB.db.Account.get(name='本年利润')
+                annual_profit.currency = rmb
+                undistributed_profit = FFDB.db.Account.get(name='未分配利润')
+                undistributed_profit.currency = rmb
+                exchange_difference = FFDB.db.Account.get(name='汇兑差额')
+                exchange_difference.currency = rmb
+            elif standard == '小企业会计准则（2013）':
+                annual_profit = FFDB.db.Account.get(name='本年利润')
+                annual_profit.currency = rmb
 
-            undistributed_profit = FFDB.db.Account.get(name='未分配利润')
-            undistributed_profit.currency = rmb
-
-            exchange_difference = FFDB.db.Account.get(name='汇兑差额')
-            exchange_difference.currency = rmb
 
     @staticmethod
     def bindDatabase(filename: pathlib.Path):

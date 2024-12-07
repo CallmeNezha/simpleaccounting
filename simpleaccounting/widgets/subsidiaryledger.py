@@ -24,8 +24,6 @@ from simpleaccounting.tools import stringscores
 from simpleaccounting.widgets.voucheredit import VoucherEditWidget, AccountSelectDialog
 
 
-COLUMNS = ["日期", "凭证记字号", "摘要", "科目名称", "借方币种金额", "贷方币种金额", "币种", "汇率", "借方金额", "贷方金额", "标签"]
-COLUMNS_WIDTH = [12, 20, 20, 20, 12, 12, 8, 8, 12, 12, 6]
 COLUMN_DATE= 0
 COLUMN_VOUCHER_NUMBER = 1
 COLUMN_BRIEF = 2
@@ -38,6 +36,9 @@ COLUMN_DEBIT_LOCAL_AMOUNT = 8
 COLUMN_CREDIT_LOCAL_AMOUNT = 9
 COLUMN_TAG = 10
 COLUMN_COUNT = 11
+
+COLUMNS = ["日期", "凭证记字号", "摘要", "科目名称", "借方币种金额", "贷方币种金额", "币种", "汇率", "借方金额", "贷方金额", "标签"]
+COLUMNS_WIDTH = [12, 20, 20, 20, 12, 12, 8, 8, 12, 12, 6]
 
 
 class SubsidaryLedgerTableWidget(QtWidgets.QTableWidget):

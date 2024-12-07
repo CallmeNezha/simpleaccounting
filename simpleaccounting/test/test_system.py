@@ -26,6 +26,7 @@ class TestSystem:
     def new_book(self, tmpdir_factory):
         filename = pathlib.Path(tmpdir_factory.mktemp('db').join('test.sqlite'))
         System.new(filename,
+                   '一般企业会计准则（2018）',
                    datetime.date(1999, 12, 1))
         print(filename)
 
