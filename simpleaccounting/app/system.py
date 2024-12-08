@@ -29,7 +29,7 @@ from vstk.expr import Float
 
 from simpleaccounting.ffdb import FFDB
 from simpleaccounting.tools.mymath import FloatWithPrecision
-from simpleaccounting.standards import ACCOUNTS_GENERAL_STANDARD_2018
+from simpleaccounting.standards import ACCOUNTS_GENERAL_STANDARD_2018, ACCOUNTS_SMALL_STANDARD_2013
 from simpleaccounting.tools.dateutil import last_day_of_previous_month, first_day_of_month, last_day_of_month, \
     month_of_date, first_day_of_year, last_day_of_year, first_day_of_next_month
 
@@ -51,6 +51,7 @@ class Meta:
         self.company: str = meta.company
         self.month_from: datetime.date = meta.month_from
         self.month_until: datetime.date = meta.month_until
+        self.standard: str = meta.standard
 
 
 class ExchangeRate:
@@ -80,7 +81,6 @@ class Account:
         self.name: str = account.name
         self.qualname: str = account.qualname
         self.major_category: str = account.major_category
-        self.sub_category: str = account.sub_category
         self.direction: str = account.direction
         self.is_custom: bool = account.is_custom
         self.need_exchange_gains_losses: bool = account.need_exchange_gains_losses
@@ -201,6 +201,11 @@ class System:
 
     @staticmethod
     def new(filename: pathlib.Path, standard: typing.Literal['一般企业会计准则（2018）', '小企业会计准则（2013）'], month: datetime.date):
+        if standard == '一般企业会计准则（2018）':
+            standard_accounts = ACCOUNTS_GENERAL_STANDARD_2018
+        elif standard == '小企业会计准则（2013）':
+            standard_accounts = ACCOUNTS_SMALL_STANDARD_2013
+
         # hard transfer
         month = month_of_date(month)
         #
@@ -226,7 +231,7 @@ class System:
                 effective_date=datetime.date(1970, 1, 1)
             )
 
-            for major_category, accounts in ACCOUNTS_GENERAL_STANDARD_2018.items():
+            for major_category, accounts in standard_accounts.items():
                 for account in accounts:
                     code_parent = '.'.join(account['科目代码'].split('.')[:-1])
                     parent = FFDB.db.Account.get(code=code_parent) if code_parent else None
@@ -235,7 +240,6 @@ class System:
                         qualname=System.__account_qualname(parent) + '/' + account['科目名称'] if parent else account['科目名称'] ,
                         code=account['科目代码'],
                         major_category=major_category,
-                        sub_category=account['科目类别'],
                         direction=account['余额方向'],
                         parent=parent,
                         is_custom=False
@@ -252,6 +256,12 @@ class System:
             elif standard == '小企业会计准则（2013）':
                 annual_profit = FFDB.db.Account.get(name='本年利润')
                 annual_profit.currency = rmb
+                undistributed_profit = FFDB.db.Account.get(name='未分配利润')
+                undistributed_profit.currency = rmb
+                exchange_difference = FFDB.db.Account.get(name='汇兑损益')
+                exchange_difference.currency = rmb
+                prior_year_profit_loss_adjustments = FFDB.db.Account.get(name='以前年度损益调整')
+                prior_year_profit_loss_adjustments.currency = rmb
 
 
     @staticmethod
@@ -302,7 +312,6 @@ class System:
                 qualname=parent.qualname + '/' + name,
                 code=code,
                 major_category=parent.major_category,
-                sub_category=parent.sub_category,
                 direction=parent.direction,
                 parent=parent,
                 is_custom=True
@@ -333,14 +342,6 @@ class System:
     def account(code: str) -> Optional[Account]:
         with FFDB.db_session:
             account = FFDB.db.Account.get(code=code)
-            if account is None:
-                return None
-            return Account(account)
-
-    @staticmethod
-    def accountByName(name: str):
-        with FFDB.db_session:
-            account = FFDB.db.Account.get(name=name)
             if account is None:
                 return None
             return Account(account)
@@ -607,9 +608,18 @@ class System:
 
     @staticmethod
     def previewMonthEndCarryForwardVoucherEntries(month: datetime.date):
-        with FFDB.db_session:
+
+        if System.meta().standard == '一般企业会计准则（2018）':
+            annual_profit_code = System.accountByQualname('本年利润').code
             number_cost_category = '5'
             number_income_and_expense_category = '6'
+
+        elif System.meta().standard == '小企业会计准则（2013）':
+            annual_profit_code = System.accountByQualname('本年利润').code
+            number_cost_category = '4'
+            number_income_and_expense_category = '5'
+
+        with FFDB.db_session:
 
             # 获取所有成本及损益大类细分科目
             cost_categories = [
@@ -661,14 +671,22 @@ class System:
             # !for
 
             if profit_remains > 0.0:
-                debit_entries.append(VoucherEntry(account_code='4103', amount=profit_remains.value, currency='人民币', exchange_rate=1.0))
+                debit_entries.append(VoucherEntry(account_code=annual_profit_code, amount=profit_remains.value, currency='人民币', exchange_rate=1.0))
             elif profit_remains < 0.0:
-                credit_entries.append(VoucherEntry(account_code='4103', amount=abs(profit_remains.value), currency='人民币', exchange_rate=1.0))
+                credit_entries.append(VoucherEntry(account_code=annual_profit_code, amount=abs(profit_remains.value), currency='人民币', exchange_rate=1.0))
             # !if
             return debit_entries, credit_entries
 
     @staticmethod
     def previewYearEndCarryForwardVoucherEntries(year: datetime.date):
+
+        if System.meta().standard == '一般企业会计准则（2018）':
+            annual_profit_code = System.accountByQualname('本年利润').code
+            undistributed_profit_code = System.accountByQualname('利润分配/未分配利润').code
+
+        elif System.meta().standard == '小企业会计准则（2013）':
+            annual_profit_code = System.accountByQualname('本年利润').code
+
         with FFDB.db_session:
             debit_entries = []
             credit_entries = []
@@ -679,36 +697,29 @@ class System:
                               v.date <= last_day_of_year(year) and
                               v.category == '月末结转'):
                 for entry in v.debit_entries:
-                    if entry.account.code == '4103':
+                    if entry.account.code == annual_profit_code:
                         profit_remains += entry.amount
                 for entry in v.credit_entries:
-                    if entry.account.code == '4103':
+                    if entry.account.code == annual_profit_code:
                         profit_remains -= entry.amount
             # 1for
 
             if profit_remains > 0.0:
                 credit_entries.append(
-                    VoucherEntry(account_code='4103', amount=abs(profit_remains.value), currency="人民币",
+                    VoucherEntry(account_code=annual_profit_code, amount=abs(profit_remains.value), currency="人民币",
                                  exchange_rate=1.0))
                 debit_entries.append(
-                    VoucherEntry(account_code='4104.06', amount=abs(profit_remains.value), currency="人民币",
+                    VoucherEntry(account_code=undistributed_profit_code, amount=abs(profit_remains.value), currency="人民币",
                                  exchange_rate=1.0))
             elif profit_remains < 0.0:
-                debit_entries.append(VoucherEntry(account_code='4103', amount=abs(profit_remains.value), currency="人民币",
+                debit_entries.append(VoucherEntry(account_code=annual_profit_code, amount=abs(profit_remains.value), currency="人民币",
                                                   exchange_rate=1.0))
                 credit_entries.append(
-                    VoucherEntry(account_code='4104.06', amount=abs(profit_remains.value), currency="人民币",
+                    VoucherEntry(account_code=undistributed_profit_code, amount=abs(profit_remains.value), currency="人民币",
                                  exchange_rate=1.0))
 
             # !if
             return debit_entries, credit_entries
-
-    @staticmethod
-    def endingBalanceByName(account_name: str, date_until: datetime.date) -> tuple[FloatWithPrecision|None, FloatWithPrecision]:
-        account = System.accountByName(account_name)
-        if account is None:
-            raise KeyError(account_name)
-        return System.endingBalance(account.code, date_until)
 
     @staticmethod
     def incurredBalances(account_code: str, date_from: datetime.date, date_until: datetime.date) -> tuple[
@@ -853,6 +864,12 @@ class System:
     @staticmethod
     def previewExchangeGainsAndLosses(month: datetime.date):
 
+        if System.meta().standard == '一般企业会计准则（2018）':
+            exchange_diff_code = System.accountByQualname('财务费用/汇兑差额').code
+
+        elif System.meta().standard == '小企业会计准则（2013）':
+            exchange_diff_code = System.accountByQualname('财务费用/汇兑损益').code
+
         def pair_entries(gains_losses: FloatWithPrecision, account_code: str, brief: str):
 
             debit_entry = None
@@ -867,7 +884,7 @@ class System:
                     brief=brief
                 )
                 credit_entry = VoucherEntry(
-                    account_code='6603.03',
+                    account_code=exchange_diff_code,
                     amount=gains_losses.value,
                     currency='人民币',
                     exchange_rate=1.0,
@@ -875,7 +892,7 @@ class System:
                 )
             elif gains_losses < 0.0:
                 debit_entry = VoucherEntry(
-                    account_code='6603.03',
+                    account_code=exchange_diff_code,
                     amount=abs(gains_losses.value),
                     currency='人民币',
                     exchange_rate=1.0,

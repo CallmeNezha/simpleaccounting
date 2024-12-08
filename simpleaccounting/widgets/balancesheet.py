@@ -204,18 +204,19 @@ class BalanceSheetWidget(QtWidgets.QWidget):
 
     def balance(self, term: str, date_until: datetime.date):
         """"""
-        last_year = last_day_of_previous_year(date_until)
-        if term == '货币资金':
-            beginning_balance = FloatWithPrecision(0.0)
-            ending_balance = FloatWithPrecision(0.0)
-            for name in ['库存现金', '银行存款', '备用金', '其他货币资金']:
-                _, local_amount = System.endingBalanceByName(name, last_year)
-                beginning_balance += local_amount
-                _, local_amount = System.endingBalanceByName(name, date_until)
-                ending_balance += local_amount
-            return beginning_balance, ending_balance
-        elif term == '交易性金融资产':
-            return None, None
-        else:
-            return None, None
+        # last_year = last_day_of_previous_year(date_until)
+        # if term == '货币资金':
+        #     beginning_balance = FloatWithPrecision(0.0)
+        #     ending_balance = FloatWithPrecision(0.0)
+        #     for name in ['库存现金', '银行存款', '备用金', '其他货币资金']:
+        #         _, local_amount = System.endingBalanceByName(name, last_year)
+        #         beginning_balance += local_amount
+        #         _, local_amount = System.endingBalanceByName(name, date_until)
+        #         ending_balance += local_amount
+        #     return beginning_balance, ending_balance
+        # elif term == '交易性金融资产':
+        #     return None, None
+        # else:
+        #     return None, None
+        return None, None
 

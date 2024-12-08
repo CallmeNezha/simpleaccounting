@@ -134,10 +134,8 @@ class AccountWidget(QtWidgets.QWidget):
         self.label_branch_code = QtWidgets.QLabel()
         self.label_branch_name = QtWidgets.QLabel()
         self.label_branch_major_category = QtWidgets.QLabel()
-        self.label_branch_sub_category = QtWidgets.QLabel()
         self.label_branch_balance_direction = QtWidgets.QLabel()
         form_branch_property.addRow("大类", self.label_branch_major_category)
-        form_branch_property.addRow("类别", self.label_branch_sub_category)
         form_branch_property.addRow("代码", self.label_branch_code)
         form_branch_property.addRow("名称", self.label_branch_name)
         form_branch_property.addRow("余额方向", self.label_branch_balance_direction)
@@ -147,13 +145,11 @@ class AccountWidget(QtWidgets.QWidget):
         self.label_leaf_code = QtWidgets.QLabel()
         self.label_leaf_name = QtWidgets.QLabel()
         self.label_leaf_major_category = QtWidgets.QLabel()
-        self.label_leaf_sub_category = QtWidgets.QLabel()
         self.label_leaf_balance_direction = QtWidgets.QLabel()
         self.button_leaf_activate = QtWidgets.QPushButton("启用")
         self.button_leaf_activate.clicked.connect(self.on_activate)
         self.button_leaf_activate.setEnabled(False)
         form_leaf_property.addRow("大类", self.label_leaf_major_category)
-        form_leaf_property.addRow("类别", self.label_leaf_sub_category)
         form_leaf_property.addRow("代码", self.label_leaf_code)
         form_leaf_property.addRow("名称", self.label_leaf_name)
         form_leaf_property.addRow("余额方向", self.label_leaf_balance_direction)
@@ -244,7 +240,6 @@ class AccountWidget(QtWidgets.QWidget):
             self.label_branch_code.setText(account.code)
             self.label_branch_name.setText(account.name)
             self.label_branch_major_category.setText(account.major_category)
-            self.label_branch_sub_category.setText(account.sub_category)
             self.label_branch_balance_direction.setText(account.direction)
             self.action_create.setEnabled(True)
         else:
@@ -255,7 +250,6 @@ class AccountWidget(QtWidgets.QWidget):
                 self.label_leaf_name.setText(account.name)
                 self.label_leaf_balance_direction.setText(account.direction)
                 self.label_leaf_major_category.setText(account.major_category)
-                self.label_leaf_sub_category.setText(account.sub_category)
                 self.button_leaf_activate.setEnabled(True)
                 self.action_create.setEnabled(True)
                 self.action_delete.setEnabled(account.is_custom)
@@ -265,7 +259,6 @@ class AccountWidget(QtWidgets.QWidget):
                 self.label_activated_leaf_name.setText(account.name)
                 self.label_activated_leaf_balance_direction.setText(account.direction)
                 self.label_activated_leaf_major_category.setText(account.major_category)
-                self.label_activated_leaf_sub_category.setText(account.sub_category)
                 self.label_activated_leaf_currency.setText(currency.name)
                 self.label_need_exchange_gains_losses.setText("是" if account.need_exchange_gains_losses else "否")
                 self.action_create.setEnabled(False)
@@ -385,7 +378,7 @@ class AccountWidget(QtWidgets.QWidget):
             self.on_select(item, item)
             return True
 
-        dialog = AccountActivateDialog(account.name, account.code, activate)
+        dialog = AccountActivateDialog(account.qualname, account.code, activate)
         dialog.exec_()
 
     def on_cbox_accountEditingFinished(self):

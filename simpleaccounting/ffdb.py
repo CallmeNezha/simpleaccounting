@@ -61,7 +61,6 @@ class FFDB:
             qualname = Required(str, unique=True)  # 科目限定名
             code = Required(str, unique=True)      # 科目代码
             major_category = Required(str)         # 科目大类
-            sub_category = Required(str)           # 科目小类
             direction = Required(str)              # 借或贷
             currency = Optional(Currency)          # 币种
             need_exchange_gains_losses = Required(bool, default=False)        # 是否加入汇兑损益

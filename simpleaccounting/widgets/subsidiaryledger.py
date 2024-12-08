@@ -249,7 +249,7 @@ class SubsidiaryLedgerWidget(QtWidgets.QWidget):
                 )
 
         self.table.resizeRowsToContents()
-        self.setWindowTitle(f"明细账 - {account.name } - {date_from.strftime('%Y年%m月%d日')}至{date_until.strftime('%Y年%m月%d日')}")
+        self.setWindowTitle(f"明细账 - {account.qualname } - {date_from.strftime('%Y年%m月%d日')}至{date_until.strftime('%Y年%m月%d日')}")
         self.refreshDebitCreditTotal()
 
     def refreshDebitCreditTotal(self):

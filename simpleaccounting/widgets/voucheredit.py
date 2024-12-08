@@ -54,7 +54,7 @@ class AccountItemDelegate(QtWidgets.QStyledItemDelegate):
         combobox.lineEdit().setAlignment(QtCore.Qt.AlignRight)
         combobox.addItem("")
         for account in System.topMRUAccounts(20):
-            combobox.addItem(f"{account.name}")
+            combobox.addItem(f"{account.qualname}")
         return combobox
 
     def setEditorData(self, comboBox, index):
@@ -73,11 +73,11 @@ class AccountItemDelegate(QtWidgets.QStyledItemDelegate):
             model.setData(index, account, QtCore.Qt.ItemDataRole.UserRole)
             System.increaseMRUAccount(account.code)
             self.setCurrencyIfNot(account)
-        elif account := System.accountByName(text):
-            model.setData(index, account.qualname, QtCore.Qt.ItemDataRole.EditRole)
-            model.setData(index, account, QtCore.Qt.ItemDataRole.UserRole)
-            System.increaseMRUAccount(account.code)
-            self.setCurrencyIfNot(account)
+        # elif account := System.accountByName(text):
+        #     model.setData(index, account.qualname, QtCore.Qt.ItemDataRole.EditRole)
+        #     model.setData(index, account, QtCore.Qt.ItemDataRole.UserRole)
+        #     System.increaseMRUAccount(account.code)
+        #     self.setCurrencyIfNot(account)
         elif account := System.accountByQualname(text):
             model.setData(index, account.qualname, QtCore.Qt.ItemDataRole.EditRole)
             model.setData(index, account, QtCore.Qt.ItemDataRole.UserRole)
@@ -94,7 +94,7 @@ class AccountItemDelegate(QtWidgets.QStyledItemDelegate):
             def setCurrency(currency_name, need_exchange_gains_losses):
                 System.setAccountCurrency(account.code, currency_name, need_exchange_gains_losses)
                 return True
-            AccountActivateDialog(account.name, account.code, setCurrency).exec_()
+            AccountActivateDialog(account.qualname, account.code, setCurrency).exec_()
 
 
 class CurrencyAmountItemDelegate(QtWidgets.QStyledItemDelegate):
@@ -830,7 +830,7 @@ class VoucherEditWidget(QtWidgets.QWidget):
             def setCurrency(currency_name, need_exchange_gains_losses):
                 System.setAccountCurrency(account.code, currency_name, need_exchange_gains_losses)
                 return True
-            AccountActivateDialog(account.name, account.code, setCurrency).exec_()
+            AccountActivateDialog(account.qualname, account.code, setCurrency).exec_()
         #
         return False
 
