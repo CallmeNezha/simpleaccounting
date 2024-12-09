@@ -22,6 +22,7 @@ from simpleaccounting.tools.dateutil import last_day_of_month, last_day_of_year,
 from simpleaccounting.tools.mymath import FloatWithPrecision
 from simpleaccounting.widgets.qwidgets import HorizontalSpacer
 from simpleaccounting.app.system import System
+from simpleaccounting.standards import BALANCE_SHEET_SMALL_STANDARD_2013, BALANCE_SHEET_GENERAL_STANDARD_2018
 
 COLUMN_ASSET = 0
 COLUMN_ASSET_ENDING_BALANCE = 1
@@ -76,112 +77,21 @@ class BalanceSheetWidget(QtWidgets.QWidget):
         vbox.addWidget(self.table)
 
     def updateUI(self):
-        entries = self.template()
+        entries = BALANCE_SHEET_SMALL_STANDARD_2013
         for i, (left, right) in enumerate(zip(entries['资产'], entries['负债和所有者权益（或股东权益）'])):
             for j in range(COLUMN_COUNT):
                 item = QtWidgets.QTableWidgetItem("")
                 item.setTextAlignment(QtCore.Qt.AlignRight)
                 self.table.setItem(i, j, item)
                 if j == COLUMN_ASSET:
-                    item.setText(left)
-                    item.setTextAlignment(QtCore.Qt.AlignLeft)
+                    item.setText(left[0])
+                    item.setTextAlignment(QtCore.Qt.AlignLeft if left[1] is None else QtCore.Qt.AlignRight)
                 elif j == COLUMN_DEBT:
-                    item.setText(right)
-                    item.setTextAlignment(QtCore.Qt.AlignLeft)
+                    item.setText(right[0])
+                    item.setTextAlignment(QtCore.Qt.AlignLeft if right[1] is None else QtCore.Qt.AlignRight)
             # 1for
         # 1for
         self.table.resizeRowsToContents()
-
-    def template(self) -> dict[str, list]:
-        entries = {
-            "资产": [
-                "流动资产:",
-                "货币资金",
-                "交易性金融资产",
-                "衍生金融资产",
-                "应收票据",
-                "应收账款",
-                "应收款项融资",
-                "预付款项",
-                "其他应收款",
-                "存货",
-                "合同资产",
-                "持有待售资产",
-                "一年内到期的非流动资产",
-                "其他流动资产",
-                "流动资产合计",
-                "非流动资产:",
-                "债权投资",
-                "其他债权投资",
-                "长期应收款",
-                "长期股权投资",
-                "其他权益工具投资",
-                "其他非流动金融资产",
-                "投资性房地产",
-                "固定资产",
-                "在建工程",
-                "生产性生物资产",
-                "油气资产",
-                "使用权资产",
-                "无形资产",
-                "开发支出",
-                "商誉",
-                "长期待摊费用",
-                "递延所得税资产",
-                "其他非流动资产",
-                "非流动资产合计",
-                "",
-                "",
-                "",
-                "",
-                "资产总计"
-            ],
-            "负债和所有者权益（或股东权益）": [
-                "流动负债:",
-                "短期借款",
-                "交易性金融负债",
-                "衍生金融负债",
-                "应付票据",
-                "应付账款",
-                "预收款项",
-                "合同负债",
-                "应付职工薪酬",
-                "应交税费",
-                "其他应付款",
-                "持有待售负债",
-                "一年内到期的非流动负债",
-                "其他流动负债",
-                "流动负债合计",
-                "非流动负债:",
-                "长期借款",
-                "应付债券",
-                "其中：优先股",
-                "永续债",
-                "租赁负债",
-                "长期应付款",
-                "预计负债",
-                "递延收益",
-                "递延所得税负债",
-                "其他非流动负债",
-                "非流动负债合计",
-                "负债合计",
-                "所有者权益（或股东权益）:",
-                "实收资本（或股本）",
-                "其他权益工具"
-                "其中：优先股",
-                "永续债",
-                "资本公积",
-                "减：库存股",
-                "其他综合收益",
-                "专项储备",
-                "盈余公积",
-                "未分配利润",
-                "所有者权益（或股东权益）合计",
-                "负债和所有者权益（或股东权益）总计"
-            ]
-        }
-        #
-        return entries
 
     def on_action_editTemplateTriggered(self):
         ...
@@ -190,33 +100,19 @@ class BalanceSheetWidget(QtWidgets.QWidget):
         """"""
         date = qdate_to_date(self.de_until.date())
         self.setWindowTitle(f"{date.strftime('%Y年度')}资产负债表")
-        entries = self.template()
+        entries = BALANCE_SHEET_SMALL_STANDARD_2013
         for i, (left, right) in enumerate(zip(entries['资产'], entries['负债和所有者权益（或股东权益）'])):
-            beginning, ending = self.balance(left, date)
-            if beginning is not None and ending is not None:
-                self.table.item(i, COLUMN_ASSET_LAST_YEAR_ENDING_BALANCE).setText(str(beginning))
-                self.table.item(i, COLUMN_ASSET_ENDING_BALANCE).setText(str(ending))
-            beginning, ending = self.balance(left, date)
-            if beginning is not None and ending is not None:
-                self.table.item(i, COLUMN_ASSET_LAST_YEAR_ENDING_BALANCE).setText(str(beginning))
-                self.table.item(i, COLUMN_ASSET_ENDING_BALANCE).setText(str(ending))
+            if lineno := left[1]:
+                beginning, ending = System.balance(lineno, date)
+                if beginning is not None and ending is not None:
+                    self.table.item(i, COLUMN_ASSET_LAST_YEAR_ENDING_BALANCE).setText(str(beginning))
+                    self.table.item(i, COLUMN_ASSET_ENDING_BALANCE).setText(str(ending))
+
+            if lineno := right[1]:
+                beginning, ending = System.balance(lineno, date)
+                if beginning is not None and ending is not None:
+                    self.table.item(i, COLUMN_ASSET_LAST_YEAR_ENDING_BALANCE).setText(str(beginning))
+                    self.table.item(i, COLUMN_ASSET_ENDING_BALANCE).setText(str(ending))
 
 
-    def balance(self, term: str, date_until: datetime.date):
-        """"""
-        # last_year = last_day_of_previous_year(date_until)
-        # if term == '货币资金':
-        #     beginning_balance = FloatWithPrecision(0.0)
-        #     ending_balance = FloatWithPrecision(0.0)
-        #     for name in ['库存现金', '银行存款', '备用金', '其他货币资金']:
-        #         _, local_amount = System.endingBalanceByName(name, last_year)
-        #         beginning_balance += local_amount
-        #         _, local_amount = System.endingBalanceByName(name, date_until)
-        #         ending_balance += local_amount
-        #     return beginning_balance, ending_balance
-        # elif term == '交易性金融资产':
-        #     return None, None
-        # else:
-        #     return None, None
-        return None, None
 

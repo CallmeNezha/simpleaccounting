@@ -20,18 +20,16 @@ import typing
 
 from typing import Optional
 
-from dateutil.relativedelta import relativedelta
-from pydantic import BaseModel, PositiveFloat, ValidationError
+from pydantic import BaseModel, PositiveFloat
 from collections import defaultdict, deque
 
-from sympy.physics.units import amount
-from vstk.expr import Float
 
 from simpleaccounting.ffdb import FFDB
 from simpleaccounting.tools.mymath import FloatWithPrecision
-from simpleaccounting.standards import ACCOUNTS_GENERAL_STANDARD_2018, ACCOUNTS_SMALL_STANDARD_2013
+from simpleaccounting.standards import (ACCOUNTS_GENERAL_STANDARD_2018, ACCOUNTS_SMALL_STANDARD_2013,
+                                        BALANCE_SHEET_SMALL_STANDARD_2013, BALANCE_SHEET_GENERAL_STANDARD_2018)
 from simpleaccounting.tools.dateutil import last_day_of_previous_month, first_day_of_month, last_day_of_month, \
-    month_of_date, first_day_of_year, last_day_of_year, first_day_of_next_month
+    month_of_date, first_day_of_year, last_day_of_year, first_day_of_next_month, last_day_of_previous_year
 
 
 # exceptions
@@ -947,14 +945,23 @@ class System:
 
         return debit_entries, credit_entries
 
+    @staticmethod
+    def balance(lineno: int, date_until: datetime.date):
+        if System.meta().standard == '小企业会计准则（2013）':
+            return System.balanceOfSmallStandard2013(lineno, date_until)
 
+    @staticmethod
+    def balanceOfSmallStandard2013(lineno: int, date_until: datetime.date):
+        date_from = first_day_of_year(date_until)
+        if lineno == 1:
+            begin_sum = FloatWithPrecision(0.0)
+            end_sum = FloatWithPrecision(0.0)
 
+            for code in ['1001', '1002', '1012']:
+                _, begin, _, _, _, _, _, end = System.incurredBalances(code, date_from, date_until)
+                begin_sum += begin
+                end_sum += end
 
+            return begin_sum, end_sum
 
-
-
-
-
-
-
-
+        return None, None
