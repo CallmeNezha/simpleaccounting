@@ -686,6 +686,7 @@ class System:
 
         elif System.meta().standard == '小企业会计准则（2013）':
             annual_profit_code = System.accountByQualname('本年利润').code
+            undistributed_profit_code = System.accountByQualname('利润分配/未分配利润').code
 
         with FFDB.db_session:
             debit_entries = []
