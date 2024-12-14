@@ -189,10 +189,10 @@ class BalanceSheetTemplateDialog(CustomInputDialog):
 
     def setupUI(self):
         # ---
-        self.action_add = QtWidgets.QAction(QtGui.QIcon(""), "添加")
-        self.action_rm = QtWidgets.QAction("删除")
-        self.action_copy = QtWidgets.QAction("拷贝")
-        self.action_rename = QtWidgets.QAction("重命名")
+        self.action_add = QtWidgets.QAction(QtGui.QIcon(":/icons/add.png"), "添加")
+        self.action_rm = QtWidgets.QAction(QtGui.QIcon(":/icons/remove.png"), "删除")
+        self.action_copy = QtWidgets.QAction(QtGui.QIcon(":/icons/copy.png"), "拷贝")
+        self.action_rename = QtWidgets.QAction(QtGui.QIcon(":/icons/rename.png"), "重命名")
         self.action_rename.triggered.connect(self.on_action_renameTriggered)
 
         self.tbar = QtWidgets.QToolBar()

@@ -35,8 +35,7 @@ class RegisterDialog(CustomInputDialog):
         self.le_name = QtWidgets.QLineEdit()
         self.le_name.setValidator(QtGui.QRegExpValidator(QtCore.QRegExp("^[A-Za-z0-9\u4e00-\u9fff]+$")))
         self.cb_standard = QtWidgets.QComboBox()
-        self.cb_standard.addItems(['一般企业会计准则（2018）', '小企业会计准则（2013）'])
-
+        self.cb_standard.addItems(['小企业会计准则（2013）']) # '一般企业会计准则（2018）',
         self.de_month = QtWidgets.QDateEdit()
         self.de_month.setDisplayFormat('yyyy.MM')
         self.de_month.setDate(month_of_date(datetime.datetime.now()))
@@ -74,6 +73,7 @@ class LoginDialog(CustomQDialog):
 
     def setupUI(self):
         self.lbl_company = QtWidgets.QLabel()
+        self.lbl_standard = QtWidgets.QLabel()
         self.lbl_month_from = QtWidgets.QLabel()
         self.lbl_month_until = QtWidgets.QLabel()
         self.cb_books = CustomQComboBox()
@@ -87,6 +87,7 @@ class LoginDialog(CustomQDialog):
         gbox = QtWidgets.QGroupBox('账套信息')
         gbox.setLayout(form)
         form.addRow('公司名称', self.lbl_company)
+        form.addRow('会计准则', self.lbl_standard)
         form.addRow('起始月份', self.lbl_month_from)
         form.addRow('当前月份', self.lbl_month_until)
         form = QtWidgets.QGridLayout(self)
@@ -110,6 +111,7 @@ class LoginDialog(CustomQDialog):
             try:
                 meta = System.meta()
                 self.lbl_company.setText(meta.company)
+                self.lbl_standard.setText(meta.standard)
                 self.lbl_month_from.setText(meta.month_from.strftime("%Y.%m"))
                 self.lbl_month_until.setText(meta.month_until.strftime("%Y.%m"))
                 self.btn_login.setEnabled(True)
