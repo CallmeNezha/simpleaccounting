@@ -99,6 +99,20 @@ class FFDB:
             debit_entries = Set(DebitEntry)          # 借方条目集合
             credit_entries = Set(CreditEntry)        # 贷方条目集合
 
+        # Balance sheet
+        class BalanceSheetTemplate(db.Entity):
+            id = PrimaryKey(int, auto=True)
+            name = Required(str, unique=True)
+            asset_liability_entries = Set('BalanceSheetEntry', reverse='template')
+
+        class BalanceSheetEntry(db.Entity):
+            id = PrimaryKey(int, auto=True)
+            template = Required(BalanceSheetTemplate)
+            category = Required(str)                  # 资产 / 负债和所有者权益（或股东权益）
+            item = Optional(str)                      # 项目名称 / 可设为空行
+            line_number = Optional(int)               # 行次
+            formula = Optional(str)                   # 计算公式
+
         # -------- User data
         class MRU_Account(db.Entity):
             id = PrimaryKey(int, auto=True)

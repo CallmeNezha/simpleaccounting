@@ -33,7 +33,7 @@ class RegisterDialog(CustomInputDialog):
 
     def setupUI(self):
         self.le_name = QtWidgets.QLineEdit()
-        self.le_name.setValidator(QtGui.QRegExpValidator(QtCore.QRegExp("^[A-Za-z0-9\u4e00-\u9fa5]+$")))
+        self.le_name.setValidator(QtGui.QRegExpValidator(QtCore.QRegExp("^[A-Za-z0-9\u4e00-\u9fff]+$")))
         self.cb_standard = QtWidgets.QComboBox()
         self.cb_standard.addItems(['一般企业会计准则（2018）', '小企业会计准则（2013）'])
 

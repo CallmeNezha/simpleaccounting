@@ -32,6 +32,27 @@ from simpleaccounting.tools.dateutil import last_day_of_previous_month, first_da
     month_of_date, first_day_of_year, last_day_of_year, first_day_of_next_month, last_day_of_previous_year
 
 
+def parse_expression(expression):
+    """
+    Parses and evaluates a mathematical expression containing only + and - operators.
+
+    Args:
+        expression (str): The mathematical expression to evaluate, e.g., "AD+BD-CE".
+
+    Returns:
+        list: A list of terms with their respective signs, e.g., ['+AD', '+BD', '-CE']
+    """
+    import re
+
+    # Add a leading '+' if the expression starts without a sign
+    if expression[0] not in ('+', '-'):
+        expression = '+' + expression
+
+    # Use regex to match terms with their signs
+    terms = re.findall(r'[+-][\w\u4E00-\u9FFF]+', expression)
+
+    return terms
+
 # exceptions
 class IllegalOperation(Exception):
     pass
@@ -168,6 +189,22 @@ class Voucher:
                 self.credit_entries.append(CreditEntry(credit_entry))
 
 
+class BalanceSheetEntry:
+    """"""
+    def __init__(self, balance_sheet_entry: 'FFDB.db.BalanceSheetEntry'):
+        self.category: str = balance_sheet_entry.category
+        self.item: str = balance_sheet_entry.item
+        self.line_number: Optional[int] = balance_sheet_entry.line_number
+        self.formula: str = balance_sheet_entry.formula
+
+
+class BalanceSheetTemplate:
+    """"""
+    def __init__(self, balance_sheet_template: 'FFDB.db.BalanceSheetTemplate'):
+        self.name: str = balance_sheet_template.name
+        with FFDB.db_session:
+            self.entries = [BalanceSheetEntry(bste) for bste in FFDB.db.BalanceSheetTemplate.get(name=self.name).asset_liability_entries.sort_by(FFDB.db.BalanceSheetEntry.id)]
+
 # system
 class System:
     """"""
@@ -201,8 +238,10 @@ class System:
     def new(filename: pathlib.Path, standard: typing.Literal['一般企业会计准则（2018）', '小企业会计准则（2013）'], month: datetime.date):
         if standard == '一般企业会计准则（2018）':
             standard_accounts = ACCOUNTS_GENERAL_STANDARD_2018
+            balance_entries = BALANCE_SHEET_GENERAL_STANDARD_2018
         elif standard == '小企业会计准则（2013）':
             standard_accounts = ACCOUNTS_SMALL_STANDARD_2013
+            balance_entries = BALANCE_SHEET_SMALL_STANDARD_2013
 
         # hard transfer
         month = month_of_date(month)
@@ -261,6 +300,18 @@ class System:
                 prior_year_profit_loss_adjustments = FFDB.db.Account.get(name='以前年度损益调整')
                 prior_year_profit_loss_adjustments.currency = rmb
 
+            #
+            template = FFDB.db.BalanceSheetTemplate(name='默认')
+            for category, entries in balance_entries.items():
+                for entry in entries:
+                    item, lineno, formula = entry
+                    se = FFDB.db.BalanceSheetEntry(
+                        template=template,
+                        category=category,
+                        item=item,
+                        line_number = lineno,
+                        formula=formula or ''
+                    )
 
     @staticmethod
     def bindDatabase(filename: pathlib.Path):
@@ -946,22 +997,69 @@ class System:
         return debit_entries, credit_entries
 
     @staticmethod
-    def balance(lineno: int, date_until: datetime.date):
-        if System.meta().standard == '小企业会计准则（2013）':
-            return System.balanceOfSmallStandard2013(lineno, date_until)
+    def balanceSheetTemplates():
+        with FFDB.db_session:
+            return [BalanceSheetTemplate(bste) for bste in FFDB.db.BalanceSheetTemplate.select()]
 
     @staticmethod
-    def balanceOfSmallStandard2013(lineno: int, date_until: datetime.date):
+    def balanceSheet(template: BalanceSheetTemplate, date_until: datetime.date):
+
         date_from = first_day_of_year(date_until)
-        if lineno == 1:
-            begin_sum = FloatWithPrecision(0.0)
-            end_sum = FloatWithPrecision(0.0)
 
-            for code in ['1001', '1002', '1012']:
-                _, begin, _, _, _, _, _, end = System.incurredBalances(code, date_from, date_until)
-                begin_sum += begin
-                end_sum += end
+        beginnings = defaultdict(lambda: FloatWithPrecision(0.0))
+        endings = defaultdict(lambda: FloatWithPrecision(0.0))
 
-            return begin_sum, end_sum
+        for entry in template.entries:
+            if entry.line_number and entry.formula:
+                terms = parse_expression(entry.formula.replace(' ', ''))
+                for term in terms:
+                    sign = term[0]
+                    try:
+                        lineno = int(term[1:])
+                        if sign == '+':
+                            beginnings[entry.line_number] += beginnings[lineno]
+                            endings[entry.line_number] += endings[lineno]
+                        elif sign == '-':
+                            beginnings[entry.line_number] -= beginnings[lineno]
+                            endings[entry.line_number] -= endings[lineno]
+                    except:
+                        account = System.accountByQualname(term[1:])
+                        if account:
+                            _, begin, _, _, _, _, _, end = System.incurredBalances(account.code, date_from, date_until)
+                            if sign == '+':
+                                beginnings[entry.line_number] += begin
+                                endings[entry.line_number] += end
+                            elif sign == '-':
+                                beginnings[entry.line_number] -= begin
+                                endings[entry.line_number] -= end
+        #
+        return beginnings, endings
 
-        return None, None
+    @staticmethod
+    def updateBalanceSheetTemplate(name: str, asset_entries, liability_entries):
+        with FFDB.db_session:
+            bste = FFDB.db.BalanceSheetTemplate.get(name=name)
+            if not bste:
+                return
+
+            bste.asset_liability_entries.clear()
+
+            for entry in asset_entries:
+                item, lineno, formula = entry
+                FFDB.db.BalanceSheetEntry(
+                    template = bste,
+                    category = '资产',  # 资产 / 负债和所有者权益（或股东权益）
+                    item = item,
+                    line_number = lineno,
+                    formula = formula or ''
+                )
+
+            for entry in liability_entries:
+                item, lineno, formula = entry
+                FFDB.db.BalanceSheetEntry(
+                    template = bste,
+                    category = '负债和所有者权益（或股东权益）',  # 资产 /
+                    item = item,
+                    line_number = lineno,
+                    formula = formula or ''
+                )

@@ -15,7 +15,18 @@
 """
 
 import os
+import sys
 from simpleaccounting.app.application import Application
+import traceback
+
+
+def trap_exc_during_debug(exc_type, exc_value, exc_traceback):
+    # when app raises uncaught exception, print info
+    print("".join(traceback.format_exception(exc_type, exc_value, exc_traceback)))
+
+
+# install exception hook: without this, uncaught exception would cause application to exit
+sys.excepthook = trap_exc_during_debug
 
 if __name__ == "__main__":
     # Initialize the application
