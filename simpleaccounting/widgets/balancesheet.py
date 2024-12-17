@@ -20,6 +20,27 @@ from simpleaccounting.tools.dateutil import last_day_of_month, qdate_to_date
 from simpleaccounting.widgets.qwidgets import HorizontalSpacer, CustomInputDialog
 from simpleaccounting.app.system import System
 
+import typing
+
+def newname(name: str, exisitingNames: typing.Iterable[str]):
+    """
+    :param name:
+    :param exisitingNames:
+    :return:
+
+    >>> assert newname("main", ["main", "main (1)"]) == "main (2)"
+    """
+    if name in exisitingNames:
+        i = 1
+        newName = f'{name} ({i})'
+        while newName in exisitingNames:
+            i += 1
+            newName = f'{name} ({i})'
+        #
+        name = newName
+    #
+    return name
+
 COLUMN_ASSET_NAME = 0
 COLUMN_ASSET_LINENO = 1
 COLUMN_ASSET_ENDING_BALANCE = 2
@@ -190,8 +211,11 @@ class BalanceSheetTemplateDialog(CustomInputDialog):
     def setupUI(self):
         # ---
         self.action_add = QtWidgets.QAction(QtGui.QIcon(":/icons/add.png"), "添加")
+        self.action_add.triggered.connect(self.on_action_addTriggered)
         self.action_rm = QtWidgets.QAction(QtGui.QIcon(":/icons/remove.png"), "删除")
+        self.action_rm.triggered.connect(self.on_action_removeTriggered)
         self.action_copy = QtWidgets.QAction(QtGui.QIcon(":/icons/copy.png"), "拷贝")
+        self.action_copy.triggered.connect(self.on_action_copyTriggered)
         self.action_rename = QtWidgets.QAction(QtGui.QIcon(":/icons/rename.png"), "重命名")
         self.action_rename.triggered.connect(self.on_action_renameTriggered)
 
@@ -211,6 +235,10 @@ class BalanceSheetTemplateDialog(CustomInputDialog):
         self.splitter.setSizes([150, 600])
         vbox = QtWidgets.QVBoxLayout(self)
         vbox.addWidget(self.splitter)
+        self.apply_button = self.button_box.addButton(QtWidgets.QDialogButtonBox.StandardButton.Apply)
+        self.apply_button.clicked.connect(self.on_applyButtonClicked)
+        self.apply_button.setEnabled(False)
+        self.model.itemChanged.connect(lambda *args: self.apply_button.setEnabled(True))
         vbox.addWidget(self.button_box)
         # ---
         self.action_copy.setEnabled(False)
@@ -224,17 +252,20 @@ class BalanceSheetTemplateDialog(CustomInputDialog):
             self.list.addItem(bste.name)
         # 1for
 
+    def on_applyButtonClicked(self, button):
+        self.saveCurrent()
+        self.apply_button.setEnabled(False)
+
     def accept(self):
         """"""
-        if not self.list.currentItem():
-            pass
-        else:
-            self.saveCurrent()
-        #!if
+        self.saveCurrent()
         super().accept()
 
     def saveCurrent(self):
         """"""
+        if not self.list.currentItem():
+            return
+
         asset_end_line = 0
         for r in reversed(range(self.model.rowCount())):
             if self.model.item(r, self.COLUMN_ASSET_NAME):
@@ -279,9 +310,9 @@ class BalanceSheetTemplateDialog(CustomInputDialog):
     def on_list_currentItemChanged(self, item):
         """"""
         if item and item.text() == '默认':
-            self.action_copy.setEnabled(False)
             self.action_rm.setEnabled(False)
             self.action_rename.setEnabled(False)
+            self.action_copy.setEnabled(True)
             self.table.setEnabled(True)
         else:
             self.action_copy.setEnabled(bool(item))
@@ -308,8 +339,57 @@ class BalanceSheetTemplateDialog(CustomInputDialog):
                     self.model.setItem(i, self.COLUMN_LIABILITY_NAME, QtGui.QStandardItem(liability.item))
                     self.model.setItem(i, self.COLUMN_LIABILITY_LINENO, QtGui.QStandardItem(str(liability.line_number) if liability.line_number else ''))
                     self.model.setItem(i, self.COLUMN_LIABILITY_FORMULAR, QtGui.QStandardItem(liability.formula))
+        # 1if
+        # model change will set apply button to enabled state, we must set it back since model is updated by the above code
+        self.apply_button.setEnabled(False)
 
     def on_action_renameTriggered(self):
         item = self.list.currentItem()
-        ...
+        text = ''
+        while not text.strip():
+            text = item.text()
+            text, ok = QtWidgets.QInputDialog.getText(self, '重命名', '名称:', text=text)
+            if not ok:
+                return
 
+            if not text.strip():
+                QtWidgets.QMessageBox.critical(None, "重命名失败", "名称不可为空")
+
+            if text.strip() in [t.name for t in System.balanceSheetTemplates()]:
+                QtWidgets.QMessageBox.critical(None, "重命名失败", "名称已存在")
+                text = ''
+        # 1while
+        System.changeBalanceSheetTemplateName(item.text(), text.strip())
+        self.updateUI()
+
+    def on_action_copyTriggered(self):
+        item = self.list.currentItem()
+        new_name = newname(item.text(), [t.name for t in System.balanceSheetTemplates()])
+        System.createBalanceSheetTemplate(new_name)
+        bste = System.balanceSheetTemplate(item.text())
+        asset_entries = [(e.item, e.line_number, e.formula) for e in bste.entries if e.category == '资产']
+        liability_entries = [(e.item, e.line_number, e.formula) for e in bste.entries if e.category == '负债和所有者权益（或股东权益）']
+        System.updateBalanceSheetTemplate(new_name, asset_entries, liability_entries)
+        self.updateUI()
+
+    def on_action_addTriggered(self):
+        text = ''
+        while not text.strip():
+            text, ok = QtWidgets.QInputDialog.getText(self, '添加', '名称:')
+            if not ok:
+                return
+
+            if not text.strip():
+                QtWidgets.QMessageBox.critical(None, "添加失败", "名称不可为空")
+
+            if text.strip() in [t.name for t in System.balanceSheetTemplates()]:
+                QtWidgets.QMessageBox.critical(None, "添加失败", "名称已存在")
+                text = ''
+        # 1while
+        System.createBalanceSheetTemplate(text.strip())
+        self.updateUI()
+
+    def on_action_removeTriggered(self):
+        item = self.list.currentItem()
+        System.deleteBalanceSheetTemplate(item.text())
+        self.updateUI()

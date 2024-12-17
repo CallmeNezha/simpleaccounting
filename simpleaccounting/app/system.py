@@ -1002,8 +1002,40 @@ class System:
             return [BalanceSheetTemplate(bste) for bste in FFDB.db.BalanceSheetTemplate.select()]
 
     @staticmethod
-    def balanceSheet(template: BalanceSheetTemplate, date_until: datetime.date):
+    def balanceSheetTemplate(name: str):
+        with FFDB.db_session:
+            bste = FFDB.db.BalanceSheetTemplate.get(name=name)
+            if bste is None:
+                raise EntryNotFound(name)
+            return BalanceSheetTemplate(bste)
 
+    @staticmethod
+    def createBalanceSheetTemplate(name: str):
+        with FFDB.db_session:
+            bste = FFDB.db.BalanceSheetTemplate(name=name)
+            if bste is None:
+                raise EntryNotFound(name)
+            return BalanceSheetTemplate(bste)
+
+    @staticmethod
+    def deleteBalanceSheetTemplate(name: str):
+        with FFDB.db_session:
+            bste = FFDB.db.BalanceSheetTemplate.get(name=name)
+            if bste is None:
+                raise EntryNotFound(name)
+            bste.delete()
+
+    @staticmethod
+    def changeBalanceSheetTemplateName(old_name: str, new_name: str):
+        with FFDB.db_session:
+            bste = FFDB.db.BalanceSheetTemplate.get(name=old_name)
+            if bste is None:
+                raise EntryNotFound(old_name)
+            bste.name = new_name
+
+    @staticmethod
+    def balanceSheet(template: BalanceSheetTemplate, date_until: datetime.date):
+        """"""
         date_from = first_day_of_year(date_until)
 
         beginnings = defaultdict(lambda: FloatWithPrecision(0.0))
@@ -1039,8 +1071,8 @@ class System:
     def updateBalanceSheetTemplate(name: str, asset_entries, liability_entries):
         with FFDB.db_session:
             bste = FFDB.db.BalanceSheetTemplate.get(name=name)
-            if not bste:
-                return
+            if bste is None:
+                raise EntryNotFound(name)
 
             bste.asset_liability_entries.clear()
 

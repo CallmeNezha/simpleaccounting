@@ -16,7 +16,6 @@
 
 from pony.orm import Database, Required, Optional, Set, PrimaryKey, db_session
 import datetime
-from collections import defaultdict
 import pathlib
 
 
