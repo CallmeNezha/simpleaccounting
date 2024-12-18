@@ -49,7 +49,7 @@ def parse_expression(expression):
         expression = '+' + expression
 
     # Use regex to match terms with their signs
-    terms = re.findall(r'[+-][\w\u4E00-\u9FFF]+', expression)
+    terms = re.findall(r'[+-][\w\u4E00-\u9FFF/]+', expression)
 
     return terms
 
@@ -1059,11 +1059,11 @@ class System:
                         if account:
                             _, begin, _, _, _, _, _, end = System.incurredBalances(account.code, date_from, date_until)
                             if sign == '+':
-                                beginnings[entry.line_number] += begin
-                                endings[entry.line_number] += end
+                                beginnings[entry.line_number] += begin * (-1 if account.direction == '贷' else 1)
+                                endings[entry.line_number] += end * (-1 if account.direction == '贷' else 1)
                             elif sign == '-':
-                                beginnings[entry.line_number] -= begin
-                                endings[entry.line_number] -= end
+                                beginnings[entry.line_number] -= begin * (-1 if account.direction == '贷' else 1)
+                                endings[entry.line_number] -= end * (-1 if account.direction == '贷' else 1)
         #
         return beginnings, endings
 
@@ -1080,7 +1080,7 @@ class System:
                 item, lineno, formula = entry
                 FFDB.db.BalanceSheetEntry(
                     template = bste,
-                    category = '资产',  # 资产 / 负债和所有者权益（或股东权益）
+                    category = '资产',  # 资产 / 负债和所有者权益
                     item = item,
                     line_number = lineno,
                     formula = formula or ''
@@ -1090,7 +1090,7 @@ class System:
                 item, lineno, formula = entry
                 FFDB.db.BalanceSheetEntry(
                     template = bste,
-                    category = '负债和所有者权益（或股东权益）',  # 资产 /
+                    category = '负债和所有者权益',  # 资产 /
                     item = item,
                     line_number = lineno,
                     formula = formula or ''

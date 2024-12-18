@@ -60,7 +60,7 @@ class VoucherWidget(QtWidgets.QWidget):
         grid.addWidget(self.label_exchange_gains_losses_voucher_state, 1, 1)
         grid.addWidget(QtWidgets.QLabel("月末结转"), 2, 0)
         grid.addWidget(self.label_month_ending_voucher_state, 2, 1)
-        grid.addWidget(QtWidgets.QLabel("往年结转"), 3, 0)
+        grid.addWidget(QtWidgets.QLabel("年末结转"), 3, 0)
         grid.addWidget(self.label_year_ending_voucher_state, 3, 1)
         grid.setColumnStretch(1, 1000)
         grid.setRowStretch(4, 1000)
@@ -71,7 +71,7 @@ class VoucherWidget(QtWidgets.QWidget):
         self.btn_exchange_gains_losses.clicked.connect(self.on_btn_exchangeGainsLossesClicked)
         self.btn_month_end_carry_forward_voucher = QtWidgets.QPushButton("（3）月末结转")
         self.btn_month_end_carry_forward_voucher.clicked.connect(self.on_btn_MECFVClicked)
-        self.btn_last_year_end_carry_forward_voucher = QtWidgets.QPushButton("（4）往年结转")
+        self.btn_last_year_end_carry_forward_voucher = QtWidgets.QPushButton("（4）年末结转")
         self.btn_last_year_end_carry_forward_voucher.clicked.connect(self.on_btn_YECFVClicked)
         self.btn_forward_month = QtWidgets.QPushButton("进入下月")
         self.btn_forward_month.clicked.connect(self.on_btn_forwardMonthClicked)
@@ -152,12 +152,12 @@ class VoucherWidget(QtWidgets.QWidget):
             self.label_month_ending_voucher_state.setText(str(len(vouchers)))
             self.label_month_ending_voucher_state.setStyleSheet('color: green;' if len(vouchers) > 0 else 'color: red;')
 
-            vouchers = System.vouchers(lambda v: v.date >= date_from and v.date <= date_until and v.category == '往年结转')
+            vouchers = System.vouchers(lambda v: v.date >= date_from and v.date <= date_until and v.category == '年末结转')
             self.label_year_ending_voucher_state.setText(str(len(vouchers)))
             self.label_year_ending_voucher_state.setStyleSheet('color: green;' if len(vouchers) > 0 else 'color: red;')
 
-            # 年初1月启用往年结转
-            self.btn_last_year_end_carry_forward_voucher.setEnabled(date.month == 1)
+            # 年初1月启用年末结转
+            self.btn_last_year_end_carry_forward_voucher.setEnabled(date.month == 12)
 
     # def on_buttonViewClicked(self):
     #

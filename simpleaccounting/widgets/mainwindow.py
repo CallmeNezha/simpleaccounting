@@ -155,9 +155,9 @@ class MainWindow(QtWidgets.QMainWindow):
     def on_yecfRequested(self, date: datetime.date):
         self.enterVoucherEditMode()
         sub_window: QtWidgets.QMdiSubWindow = self.mdi_area.addSubWindow(
-            YearEndCarryForwardWidget(last_day_of_year(datetime.date(date.year - 1, date.month, date.day)))
+            YearEndCarryForwardWidget(last_day_of_year(date))
         )
-        sub_window.setWindowTitle(f'往年结转凭证 - {date.strftime("%Y年")}')
+        sub_window.setWindowTitle(f'年末结转凭证 - {date.strftime("%Y年")}')
         sub_window.show()
         sub_window.resize(1600, 600)
         sub_window.move(20, 20)

@@ -93,7 +93,7 @@ class FFDB:
         class Voucher(db.Entity):
             id = PrimaryKey(int, auto=True)    # 凭证的唯一编号
             number = Required(str, unique=True)      # 凭证编号，必须唯一
-            category = Required(str, default='记账')  # 凭证类型  # 记账 # 月末结转 # 往年结转
+            category = Required(str, default='记账')  # 凭证类型  # 记账 # 月末结转 # 年末结转
             date = Required(datetime.date)           # 凭证日期
             debit_entries = Set(DebitEntry)          # 借方条目集合
             credit_entries = Set(CreditEntry)        # 贷方条目集合
@@ -107,7 +107,7 @@ class FFDB:
         class BalanceSheetEntry(db.Entity):
             id = PrimaryKey(int, auto=True)
             template = Required(BalanceSheetTemplate)
-            category = Required(str)                  # 资产 / 负债和所有者权益（或股东权益）
+            category = Required(str)                  # 资产 / 负债和所有者权益
             item = Optional(str)                      # 项目名称 / 可设为空行
             line_number = Optional(int)               # 行次
             formula = Optional(str)                   # 计算公式

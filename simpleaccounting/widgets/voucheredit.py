@@ -22,7 +22,7 @@ from simpleaccounting.app.system import System, VoucherEntry, Voucher, IllegalOp
 from simpleaccounting.tools.mymath import FloatWithPrecision
 from simpleaccounting.widgets.qwidgets import HorizontalSpacer, CustomInputDialog
 from simpleaccounting.widgets.account import AccountActivateDialog
-from simpleaccounting.tools.dateutil import last_day_of_month, first_day_of_month, qdate_to_date
+from simpleaccounting.tools.dateutil import last_day_of_month, first_day_of_month, qdate_to_date, last_day_of_year
 from simpleaccounting.widgets.cascadewidget import CNCascadingListsWidget, CNCascadingListsWidgetItem
 
 
@@ -1119,9 +1119,9 @@ class YearEndCarryForwardWidget(MonthEndCarryForwardWidget):
     def updateUI(self):
         self.action_update.setEnabled(False)
         self.action_update.setText('无需更新')
-        self.lbl_voucher_category.setText('往年结转')
+        self.lbl_voucher_category.setText('年末结转')
         self.lbl_voucher_number.setText(self.date_month.strftime('%Y-XX/YECF'))
-        self.de.setDate(datetime.date(self.date_month.year + 1, 1, 1))
+        self.de.setDate(last_day_of_year(self.date_month))
         debit_entries, credit_entries = System.previewYearEndCarryForwardVoucherEntries(self.date_month)
         if debit_entries and credit_entries:
             self.stack.setCurrentWidget(self.table)
@@ -1162,8 +1162,8 @@ class YearEndCarryForwardWidget(MonthEndCarryForwardWidget):
         except EntryNotFound:
             System.createVoucher(
                 self.date_month.strftime('%Y-XX/YECF'),
-                datetime.date(self.date_month.year + 1, 1, 1),
-                category='往年结转'
+                last_day_of_year(self.date_month),
+                category='年末结转'
             )
 
         System.updateDebitCreditEntries(

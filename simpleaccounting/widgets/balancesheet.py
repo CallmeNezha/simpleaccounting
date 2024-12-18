@@ -72,6 +72,7 @@ class BalanceSheetWidget(QtWidgets.QWidget):
         self.de_until = QtWidgets.QDateEdit()
         self.de_until.setDate(last_day_of_month(System.meta().month_until))
         self.cb_template = QtWidgets.QComboBox()
+        self.cb_template.setSizeAdjustPolicy(QtWidgets.QComboBox.SizeAdjustPolicy.AdjustToContents)
         # --- layout
         container = QtWidgets.QWidget()
         hbox = QtWidgets.QHBoxLayout(container)
@@ -124,7 +125,7 @@ class BalanceSheetWidget(QtWidgets.QWidget):
             return
         # 1if
         asset_entries = [e for e in bste.entries if e.category == '资产']
-        liability_entries = [e for e in bste.entries if e.category == '负债和所有者权益（或股东权益）']
+        liability_entries = [e for e in bste.entries if e.category == '负债和所有者权益']
         for i, (left, right) in enumerate(zip(asset_entries, liability_entries)):
             for j in range(COLUMN_COUNT):
                 item = QtWidgets.QTableWidgetItem("")
@@ -163,7 +164,7 @@ class BalanceSheetWidget(QtWidgets.QWidget):
         #!
         bste = self.cb_template.currentData(QtCore.Qt.UserRole)
         asset_entries = [e for e in bste.entries if e.category == '资产']
-        liability_entries = [e for e in bste.entries if e.category == '负债和所有者权益（或股东权益）']
+        liability_entries = [e for e in bste.entries if e.category == '负债和所有者权益']
         #!
         beginnings, endings = System.balanceSheet(bste, date)
         #!
@@ -331,7 +332,7 @@ class BalanceSheetTemplateDialog(CustomInputDialog):
         if item:
             if bste := next((t for t in System.balanceSheetTemplates() if t.name == item.text()), None):
                 asset_entries = [e for e in bste.entries if e.category == '资产']
-                liability_entries = [e for e in bste.entries if e.category == '负债和所有者权益（或股东权益）']
+                liability_entries = [e for e in bste.entries if e.category == '负债和所有者权益']
                 for i, (asset, liability) in enumerate(zip(asset_entries, liability_entries)):
                     self.model.setItem(i, self.COLUMN_ASSET_NAME, QtGui.QStandardItem(asset.item))
                     self.model.setItem(i, self.COLUMN_ASSET_LINENO, QtGui.QStandardItem(str(asset.line_number) if asset.line_number else ''))
@@ -368,7 +369,7 @@ class BalanceSheetTemplateDialog(CustomInputDialog):
         System.createBalanceSheetTemplate(new_name)
         bste = System.balanceSheetTemplate(item.text())
         asset_entries = [(e.item, e.line_number, e.formula) for e in bste.entries if e.category == '资产']
-        liability_entries = [(e.item, e.line_number, e.formula) for e in bste.entries if e.category == '负债和所有者权益（或股东权益）']
+        liability_entries = [(e.item, e.line_number, e.formula) for e in bste.entries if e.category == '负债和所有者权益']
         System.updateBalanceSheetTemplate(new_name, asset_entries, liability_entries)
         self.updateUI()
 
