@@ -40,4 +40,3 @@ class Application(QtWidgets.QApplication):
         # BulletinBoardDialog().exec_()
         self.main_window = MainWindow()
         self.main_window.show()
-        # self.dialog_login.show()

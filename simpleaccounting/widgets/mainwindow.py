@@ -39,6 +39,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def setupUI(self):
         self.toolbar = QtWidgets.QToolBar()
         self.toolbar.setToolButtonStyle(QtCore.Qt.ToolButtonTextUnderIcon)
+        # ---
         self.action_show_accounts_window = QtWidgets.QAction(QtGui.QIcon(":/icons/accounting.png"), "科目管理")
         self.action_show_accounts_window.triggered.connect(self.on_action_showAccountsWindowTriggered)
         self.action_show_currency_window = QtWidgets.QAction(QtGui.QIcon(":/icons/dollar-taiwan.png"), "币种管理")
@@ -51,6 +52,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.action_show_ending_balance_window.triggered.connect(self.on_action_showEndingBalanceWindowTriggered)
         self.action_show_balance_sheet_window = QtWidgets.QAction(QtGui.QIcon(":/icons/fund-accounting.png"), "资产负债表")
         self.action_show_balance_sheet_window.triggered.connect(self.on_action_showBalanceSheetWindowTriggered)
+        self.action_show_profit_statement_window = QtWidgets.QAction(QtGui.QIcon(":/icons/transaction.png"), "利润表")
+        self.action_show_profit_statement_window.triggered.connect(self.on_action_showProfitStatementWindow)
+        self.action_show_cash_flow_window.triggered.connect(self.on_action_showCashFlowWindowTriggered)
         self.action_show_cash_flow_window = QtWidgets.QAction(QtGui.QIcon(":/icons/transaction.png"), "现金流量表")
         self.action_show_cash_flow_window.triggered.connect(self.on_action_showCashFlowWindowTriggered)
         self.toolbar.addAction(self.action_show_accounts_window)
@@ -175,7 +179,6 @@ class MainWindow(QtWidgets.QMainWindow):
         sub_window.destroyed.connect(lambda *args: self.quitVoucherEditMode())
 
 
-
     def updateUI(self):
         meta = System.meta()
         self.setWindowTitle(f"{meta.company} "
@@ -203,6 +206,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def on_action_showBalanceSheetWindowTriggered(self):
         self.balance_sheet_widget.show()
+
+    def on_action_showProfitStatementWindow(self):
+        ...
 
     def on_action_showCashFlowWindowTriggered(self):
         ...
